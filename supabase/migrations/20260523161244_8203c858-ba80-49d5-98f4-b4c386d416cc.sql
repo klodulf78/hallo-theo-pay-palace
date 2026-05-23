@@ -1,0 +1,1 @@
+ALTER TABLE public.guardrails ADD COLUMN IF NOT EXISTS simulated_now date;
