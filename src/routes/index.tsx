@@ -7,6 +7,7 @@ import { generateCycleSummary } from "@/lib/ai-summary.functions";
 import { useAdvancing, useCycle } from "@/lib/cycle-store";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StripeSetupCard } from "@/components/stripe-setup-card";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -129,6 +130,7 @@ function Dashboard() {
           </span>
         </div>
       </div>
+      <StripeSetupCard />
 
       {/* AI Summary */}
       <Card className="p-6 border-border shadow-sm">
