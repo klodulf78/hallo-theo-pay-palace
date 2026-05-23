@@ -195,6 +195,7 @@ export type Database = {
           max_auto_plan_amount: number | null
           max_installments: number | null
           max_retry_attempts: number | null
+          simulated_now: string | null
           stripe_test_clock_id: string | null
           updated_at: string
         }
@@ -205,6 +206,7 @@ export type Database = {
           max_auto_plan_amount?: number | null
           max_installments?: number | null
           max_retry_attempts?: number | null
+          simulated_now?: string | null
           stripe_test_clock_id?: string | null
           updated_at?: string
         }
@@ -215,6 +217,7 @@ export type Database = {
           max_auto_plan_amount?: number | null
           max_installments?: number | null
           max_retry_attempts?: number | null
+          simulated_now?: string | null
           stripe_test_clock_id?: string | null
           updated_at?: string
         }
