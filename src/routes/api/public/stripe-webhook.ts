@@ -403,6 +403,72 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
   }
 }
 
+async function onPaymentIntentSucceeded(
+  pi: Stripe.PaymentIntent,
+  eventId: string,
+) {
+  if (await eventAlreadyRecorded(eventId)) return;
+
+  const obligationId = pi.metadata?.rent_obligation_id;
+  const ctx = await ensureTenantCtx(customerIdFromPaymentIntent(pi));
+  if (!ctx || !obligationId) return;
+
+  await supabaseAdmin
+    .from("rent_obligations")
+    .update({
+      status: "paid",
+      dunning_stage: 0,
+      default_since: null,
+      accrued_dunning_fees: 0,
+      accrued_default_interest: 0,
+    })
+    .eq("id", obligationId);
+
+  await supabaseAdmin.from("payment_events").insert({
+    tenant_id: ctx.tenant_id,
+    unit_id: ctx.unit_id,
+    rent_obligation_id: obligationId,
+    type: "succeeded",
+    amount: pi.amount_received / 100,
+    source: "stripe_webhook",
+    stripe_event_id: eventId,
+    occurred_at: new Date(pi.created * 1000).toISOString(),
+  });
+
+  await supabaseAdmin
+    .from("exceptions")
+    .update({ status: "resolved" })
+    .eq("rent_obligation_id", obligationId);
+}
+
+async function onPaymentIntentFailed(
+  pi: Stripe.PaymentIntent,
+  eventId: string,
+) {
+  if (await eventAlreadyRecorded(eventId)) return;
+
+  const obligationId = pi.metadata?.rent_obligation_id;
+  const ctx = await ensureTenantCtx(customerIdFromPaymentIntent(pi));
+  if (!ctx || !obligationId) return;
+
+  await supabaseAdmin
+    .from("rent_obligations")
+    .update({ status: "failed" })
+    .eq("id", obligationId);
+
+  await supabaseAdmin.from("payment_events").insert({
+    tenant_id: ctx.tenant_id,
+    unit_id: ctx.unit_id,
+    rent_obligation_id: obligationId,
+    type: "failed",
+    amount: pi.amount / 100,
+    failure_reason: failureReasonFromPaymentIntent(pi),
+    source: "stripe_webhook",
+    stripe_event_id: eventId,
+    occurred_at: new Date(pi.created * 1000).toISOString(),
+  });
+}
+
 async function onChargeRefunded(charge: Stripe.Charge, eventId: string) {
   const customerId =
     typeof charge.customer === "string"
