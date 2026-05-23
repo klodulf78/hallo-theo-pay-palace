@@ -175,7 +175,7 @@ function ExceptionsPage() {
             </DialogDescription>
           </DialogHeader>
           <pre className="mt-2 max-h-[60vh] overflow-auto rounded-md bg-muted p-4 text-xs leading-relaxed">
-            {openRow ? JSON.stringify(openRow.riskBreakdown, null, 2) : ""}
+            {openRow?.riskBreakdown ?? "—"}
           </pre>
         </DialogContent>
       </Dialog>
