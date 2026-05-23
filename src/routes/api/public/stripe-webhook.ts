@@ -63,6 +63,18 @@ async function handleEvent(event: Stripe.Event) {
     case "invoice.payment_failed":
       await onInvoiceFailed(event.data.object as Stripe.Invoice);
       break;
+    case "payment_intent.succeeded":
+      await onPaymentIntentSucceeded(
+        event.data.object as Stripe.PaymentIntent,
+        event.id,
+      );
+      break;
+    case "payment_intent.payment_failed":
+      await onPaymentIntentFailed(
+        event.data.object as Stripe.PaymentIntent,
+        event.id,
+      );
+      break;
     case "charge.refunded":
       await onChargeRefunded(event.data.object as Stripe.Charge, event.id);
       break;
@@ -193,6 +205,40 @@ function customerIdFromInvoice(inv: Stripe.Invoice): string | null {
     : (inv.customer?.id ?? null);
 }
 
+function customerIdFromPaymentIntent(pi: Stripe.PaymentIntent): string | null {
+  return typeof pi.customer === "string"
+    ? pi.customer
+    : (pi.customer?.id ?? null);
+}
+
+function failureReasonFromPaymentIntent(pi: Stripe.PaymentIntent): string {
+  const code = pi.last_payment_error?.code ?? pi.last_payment_error?.decline_code;
+  if (code === "insufficient_funds" || code === "invalid_mandate") return code;
+  return "insufficient_funds";
+}
+
+async function eventAlreadyRecorded(eventId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("payment_events")
+    .select("id")
+    .eq("stripe_event_id", eventId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+async function obligationHasEvent(
+  obligationId: string,
+  type: "succeeded" | "failed",
+): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("payment_events")
+    .select("id")
+    .eq("rent_obligation_id", obligationId)
+    .eq("type", type)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 /* ----------------------------- handlers ----------------------------- */
 
 async function onCustomerUpsert(customer: Stripe.Customer) {
@@ -294,9 +340,9 @@ async function onInvoicePaid(inv: Stripe.Invoice) {
     tenant_id: ctx.tenant_id,
     unit_id: ctx.unit_id,
     rent_obligation_id: obligationId,
-    type: "payment_succeeded",
+    type: "succeeded",
     amount: (inv.amount_paid ?? 0) / 100,
-    source: "stripe",
+    source: "stripe_webhook",
     stripe_event_id: inv.id,
     occurred_at: new Date().toISOString(),
   });
@@ -313,25 +359,26 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
   if (!ctx || !obligationId) return;
 
   const attemptCount = inv.attempt_count ?? 1;
-  const newStatus = attemptCount >= 3 ? "human_review" : "retry_scheduled";
 
   await supabaseAdmin
     .from("rent_obligations")
-    .update({ status: newStatus })
+    .update({ status: attemptCount >= 3 ? "human_review" : "failed" })
     .eq("id", obligationId);
 
   const charge = (inv as unknown as { last_finalization_error?: { message?: string } })
     .last_finalization_error;
-  const reason = charge?.message ?? "card_declined";
+  const reason = /mandate/i.test(charge?.message ?? "")
+    ? "invalid_mandate"
+    : "insufficient_funds";
 
   await supabaseAdmin.from("payment_events").insert({
     tenant_id: ctx.tenant_id,
     unit_id: ctx.unit_id,
     rent_obligation_id: obligationId,
-    type: "payment_failed",
+    type: "failed",
     amount: (inv.amount_due ?? 0) / 100,
     failure_reason: reason,
-    source: "stripe",
+    source: "stripe_webhook",
     stripe_event_id: inv.id,
     occurred_at: new Date().toISOString(),
   });
@@ -368,6 +415,76 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
       risk_score: 50 + attemptCount * 10,
     });
   }
+}
+
+async function onPaymentIntentSucceeded(
+  pi: Stripe.PaymentIntent,
+  eventId: string,
+) {
+  if (await eventAlreadyRecorded(eventId)) return;
+
+  const obligationId = pi.metadata?.rent_obligation_id;
+  const ctx = await ensureTenantCtx(customerIdFromPaymentIntent(pi));
+  if (!ctx || !obligationId) return;
+
+  await supabaseAdmin
+    .from("rent_obligations")
+    .update({
+      status: "paid",
+      dunning_stage: 0,
+      default_since: null,
+      accrued_dunning_fees: 0,
+      accrued_default_interest: 0,
+    })
+    .eq("id", obligationId);
+
+  if (await obligationHasEvent(obligationId, "succeeded")) return;
+
+  await supabaseAdmin.from("payment_events").insert({
+    tenant_id: ctx.tenant_id,
+    unit_id: ctx.unit_id,
+    rent_obligation_id: obligationId,
+    type: "succeeded",
+    amount: pi.amount_received / 100,
+    source: "stripe_webhook",
+    stripe_event_id: eventId,
+    occurred_at: new Date(pi.created * 1000).toISOString(),
+  });
+
+  await supabaseAdmin
+    .from("exceptions")
+    .update({ status: "resolved" })
+    .eq("rent_obligation_id", obligationId);
+}
+
+async function onPaymentIntentFailed(
+  pi: Stripe.PaymentIntent,
+  eventId: string,
+) {
+  if (await eventAlreadyRecorded(eventId)) return;
+
+  const obligationId = pi.metadata?.rent_obligation_id;
+  const ctx = await ensureTenantCtx(customerIdFromPaymentIntent(pi));
+  if (!ctx || !obligationId) return;
+
+  await supabaseAdmin
+    .from("rent_obligations")
+    .update({ status: "failed" })
+    .eq("id", obligationId);
+
+  if (await obligationHasEvent(obligationId, "failed")) return;
+
+  await supabaseAdmin.from("payment_events").insert({
+    tenant_id: ctx.tenant_id,
+    unit_id: ctx.unit_id,
+    rent_obligation_id: obligationId,
+    type: "failed",
+    amount: pi.amount / 100,
+    failure_reason: failureReasonFromPaymentIntent(pi),
+    source: "stripe_webhook",
+    stripe_event_id: eventId,
+    occurred_at: new Date(pi.created * 1000).toISOString(),
+  });
 }
 
 async function onChargeRefunded(charge: Stripe.Charge, eventId: string) {
