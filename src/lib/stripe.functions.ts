@@ -52,6 +52,11 @@ export const setupStripeDemo = createServerFn({ method: "POST" }).handler(
     const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
     const clockNow = clock.frozen_time;
 
+    // Shared product used across all tenant subscriptions
+    const product = await stripe.products.create({
+      name: "Monatsmiete (hallo flow demo)",
+    });
+
     // 2) Load tenants that still need provisioning
     const { data: tenants, error } = await supabaseAdmin
       .from("tenants")
