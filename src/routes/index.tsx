@@ -1,237 +1,43 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, Loader2 } from "lucide-react";
-import { getDashboardKpis } from "@/lib/dashboard.functions";
-import { generateCycleSummary } from "@/lib/ai-summary.functions";
-import { useAdvancing, useCycle } from "@/lib/cycle-store";
-import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StripeSetupCard } from "@/components/stripe-setup-card";
 import { RecentEventsCard } from "@/components/recent-events-card";
-import { AddTenantButton } from "@/components/add-tenant-button";
-import { cn } from "@/lib/utils";
-
+import { DemoControlsCard } from "@/components/demo-controls-card";
+import {
+  HeaderStrip,
+  LiveStateCard,
+  DunningStatusCard,
+} from "@/components/validation-panels";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard — hallo flow" },
+      { title: "Validation Mode — hallo flow" },
       {
         name: "description",
         content:
-          "Payment health dashboard for autonomous rent collection by hallo flow.",
+          "Validation dashboard for the autonomous dunning flow of hallo flow.",
       },
     ],
   }),
   component: Dashboard,
 });
 
-const fmtEur = (n: number) =>
-  `€${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-
-type Tone = "positive" | "info" | "warn" | "danger" | "brand" | "neutral";
-
-const toneStyles: Record<Tone, { accent: string; value: string }> = {
-  positive: {
-    accent: "bg-[var(--status-paid)]",
-    value: "text-[var(--status-paid)]",
-  },
-  info: {
-    accent: "bg-[var(--status-recovered)]",
-    value: "text-[var(--status-recovered)]",
-  },
-  warn: {
-    accent: "bg-[var(--status-plan)]",
-    value: "text-[var(--status-plan)]",
-  },
-  danger: {
-    accent: "bg-[var(--status-review)]",
-    value: "text-[var(--status-review)]",
-  },
-  brand: {
-    accent: "bg-primary",
-    value: "text-primary",
-  },
-  neutral: {
-    accent: "bg-muted-foreground/40",
-    value: "text-foreground",
-  },
-};
-
-function KpiCard({
-  label,
-  value,
-  sub,
-  tone = "neutral",
-  loading,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  tone?: Tone;
-  loading?: boolean;
-}) {
-  const t = toneStyles[tone];
-  return (
-    <Card className="relative overflow-hidden p-5 border-border shadow-sm">
-      <div className={cn("absolute left-0 top-0 h-full w-1", t.accent)} />
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      {loading ? (
-        <Skeleton className="mt-3 h-8 w-28" />
-      ) : (
-        <div className={cn("mt-2 text-3xl font-bold tracking-tight", t.value)}>
-          {value}
-        </div>
-      )}
-      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
-    </Card>
-  );
-}
-
 function Dashboard() {
-  const cycle = useCycle();
-  const advancing = useAdvancing();
-
-  const summaryFn = useServerFn(generateCycleSummary);
-
-  const kpis = useQuery({
-    queryKey: ["dashboard-kpis", cycle],
-    queryFn: () => getDashboardKpis(),
-    staleTime: 0,
-  });
-
-  const summary = useQuery({
-    queryKey: ["ai-cycle-summary", cycle, kpis.data?.month],
-    enabled: !!kpis.data,
-    queryFn: () => summaryFn({ data: kpis.data! }),
-    staleTime: Infinity,
-  });
-
-  const loading = kpis.isLoading || advancing;
-  const k = kpis.data;
-
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Payment Health{k?.month ? ` — ${k.month}` : ""}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Autonomous rent cycle overview. Only true exceptions need your attention.
-          </p>
-
-        </div>
-        <div className="rounded-md border border-border bg-card px-4 py-2 text-sm shadow-sm">
-          <span className="font-semibold text-[var(--status-paid)]">
-            0
-          </span>{" "}
-          <span className="text-muted-foreground">
-            payment-status support tickets
-          </span>
-        </div>
-      </div>
-      <div className="flex justify-end">
-        <AddTenantButton />
-      </div>
-      <StripeSetupCard />
-
-      {/* AI Summary */}
-      <Card className="p-6 border-border shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold">AI Cycle Summary</h2>
-              <p className="text-xs text-muted-foreground">
-                Generated by AI · {k?.month ?? "—"}
-              </p>
-            </div>
-          </div>
-          {(summary.isFetching || advancing) && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Generating…
-            </div>
-          )}
-        </div>
-        <div className="mt-4 min-h-[80px]">
-          {summary.isFetching || advancing || !summary.data ? (
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-[95%]" />
-              <Skeleton className="h-4 w-[88%]" />
-              <Skeleton className="h-4 w-[70%]" />
-            </div>
-          ) : (
-            <p className="text-[15px] leading-relaxed text-foreground/90">
-              {summary.data.summary}
-            </p>
-          )}
-        </div>
-      </Card>
-
-      {/* KPI grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <KpiCard
-          label="Expected Rent"
-          value={k ? fmtEur(k.expected) : "—"}
-          sub={k ? `${k.tenantCount} tenants · May 2026` : "Loading…"}
-          loading={loading}
-        />
-        <KpiCard
-          label="Collected"
-          value={k ? fmtEur(k.collected) : "—"}
-          sub={k ? `${k.collectedCount} paid on time` : "Loading…"}
-          tone="positive"
-          loading={loading}
-        />
-        <KpiCard
-          label="Recovered by Agent"
-          value={k ? fmtEur(k.recovered) : "—"}
-          sub={
-            k ? `${k.recoveredCount} payments retried successfully` : "Loading…"
-          }
-          tone="info"
-          loading={loading}
-        />
-        <KpiCard
-          label="In Payment Plan"
-          value={k ? fmtEur(k.paymentPlan) : "—"}
-          sub={k ? `${k.paymentPlanCount} tenant · 2-part plan` : "Loading…"}
-          tone="warn"
-          loading={loading}
-        />
-        <KpiCard
-          label="Needs Human Review"
-          value={k ? fmtEur(k.humanReview) : "—"}
-          sub={
-            k
-              ? `${k.humanReviewCount} exception${k.humanReviewCount === 1 ? "" : "s"}`
-              : "Loading…"
-          }
-          tone="danger"
-          loading={loading}
-        />
-        <KpiCard
-          label="Auto-cleared"
-          value={k ? `${k.autoClearedPct}%` : "—"}
-          sub={
-            k
-              ? `${k.autoClearedNumerator} of ${k.autoClearedDenominator} resolved automatically`
-              : "Loading…"
-          }
-          tone="brand"
-          loading={loading}
-        />
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+          Validation Mode
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manuelles Testen des Mahn-Flows. Production-View ist temporär ausgeblendet.
+        </p>
       </div>
 
+      <HeaderStrip />
+      <DemoControlsCard />
+      <LiveStateCard />
+      <DunningStatusCard />
       <RecentEventsCard />
     </div>
   );
 }
-
