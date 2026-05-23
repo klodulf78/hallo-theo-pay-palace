@@ -226,6 +226,19 @@ async function eventAlreadyRecorded(eventId: string): Promise<boolean> {
   return Boolean(data);
 }
 
+async function obligationHasEvent(
+  obligationId: string,
+  type: "succeeded" | "failed",
+): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("payment_events")
+    .select("id")
+    .eq("rent_obligation_id", obligationId)
+    .eq("type", type)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 /* ----------------------------- handlers ----------------------------- */
 
 async function onCustomerUpsert(customer: Stripe.Customer) {
@@ -424,6 +437,8 @@ async function onPaymentIntentSucceeded(
     })
     .eq("id", obligationId);
 
+  if (await obligationHasEvent(obligationId, "succeeded")) return;
+
   await supabaseAdmin.from("payment_events").insert({
     tenant_id: ctx.tenant_id,
     unit_id: ctx.unit_id,
@@ -455,6 +470,8 @@ async function onPaymentIntentFailed(
     .from("rent_obligations")
     .update({ status: "failed" })
     .eq("id", obligationId);
+
+  if (await obligationHasEvent(obligationId, "failed")) return;
 
   await supabaseAdmin.from("payment_events").insert({
     tenant_id: ctx.tenant_id,
