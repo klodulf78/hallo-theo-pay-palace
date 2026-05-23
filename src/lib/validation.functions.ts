@@ -21,10 +21,52 @@ export type ValidationState = {
   }>;
 };
 
+const DEMO_ANCHOR_DATE = "2026-05-01";
+
+/** First working day (Mon–Fri) on or after the 1st of `monthStr` (YYYY-MM). */
+function firstWorkingDayOfMonth(monthStr: string): string {
+  const [y, m] = monthStr.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1, 1));
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) {
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+/** Adds exactly 1 calendar month to a YYYY-MM-DD date (UTC), clamping the day. */
+function addOneMonth(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m, d)); // m is 1-based → m as index = next month
+  if (next.getUTCMonth() !== m % 12) {
+    next.setUTCDate(0); // overflow → last day of intended month
+  }
+  return next.toISOString().slice(0, 10);
+}
+
+/** Ensures guardrails has simulated_now; initializes to the demo anchor on first read. */
+async function ensureSimulatedNow(): Promise<string> {
+  const { data: gr } = await supabaseAdmin
+    .from("guardrails")
+    .select("id, simulated_now")
+    .maybeSingle();
+  if (gr?.simulated_now) return gr.simulated_now as string;
+  if (gr?.id) {
+    await supabaseAdmin
+      .from("guardrails")
+      .update({ simulated_now: DEMO_ANCHOR_DATE })
+      .eq("id", gr.id);
+  } else {
+    await supabaseAdmin
+      .from("guardrails")
+      .insert({ simulated_now: DEMO_ANCHOR_DATE });
+  }
+  return DEMO_ANCHOR_DATE;
+}
+
 export const getValidationState = createServerFn({ method: "GET" }).handler(
   async (): Promise<ValidationState> => {
+    const simulatedNow = await ensureSimulatedNow();
     const [
-      { data: gr },
       tenants,
       obligations,
       events,
@@ -32,7 +74,6 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
       dunning,
       dunningRows,
     ] = await Promise.all([
-      supabaseAdmin.from("guardrails").select("simulated_now").maybeSingle(),
       supabaseAdmin.from("tenants").select("id", { count: "exact", head: true }),
       supabaseAdmin
         .from("rent_obligations")
