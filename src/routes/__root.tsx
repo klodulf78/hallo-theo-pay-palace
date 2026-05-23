@@ -10,6 +10,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/app-shell";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -74,15 +75,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Payment Manager Hallo Theo" },
-      { name: "description", content: "Hallo Theo Payments is a payment management application for GitHub repositories." },
+      {
+        name: "description",
+        content: "Hallo Theo Payments is a payment management application for GitHub repositories.",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Payment Manager Hallo Theo" },
-      { property: "og:description", content: "Hallo Theo Payments is a payment management application for GitHub repositories." },
+      {
+        property: "og:description",
+        content: "Hallo Theo Payments is a payment management application for GitHub repositories.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Payment Manager Hallo Theo" },
-      { name: "twitter:description", content: "Hallo Theo Payments is a payment management application for GitHub repositories." },
+      {
+        name: "twitter:description",
+        content: "Hallo Theo Payments is a payment management application for GitHub repositories.",
+      },
     ],
     links: [
       {
@@ -119,6 +129,7 @@ function RootComponent() {
       <AppShell>
         <Outlet />
       </AppShell>
+      <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );
 }

@@ -1,10 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import {
-  getStripe,
-  paymentMethodForBehavior,
-  DEMO_START_UNIX,
-} from "./stripe.server";
+import { getStripe, paymentMethodForBehavior, DEMO_START_UNIX } from "./stripe.server";
 
 type SetupResult = {
   testClockId: string;
@@ -13,6 +9,19 @@ type SetupResult = {
   tenantsSkipped: number;
   errors: string[];
 };
+
+/**
+ * Given a unix timestamp (seconds), return the unix timestamp of the first
+ * instant of the *next* UTC month boundary. Used as the subscription
+ * billing/trial anchor so no invoice is generated at subscription creation —
+ * the first rent charge fires only when the test clock first crosses this
+ * boundary (i.e. the first "Advance Month"), keeping Scene 1 payment-free.
+ */
+function nextMonthBoundaryUnix(fromUnix: number): number {
+  const d = new Date(fromUnix * 1000);
+  const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 0, 0, 0, 0);
+  return Math.floor(next / 1000);
+}
 
 /**
  * Provisions a Stripe Test Clock, plus a Customer + PaymentMethod + monthly
@@ -43,14 +52,17 @@ export const setupStripeDemo = createServerFn({ method: "POST" }).handler(
           .update({ stripe_test_clock_id: testClockId })
           .eq("id", gr.id);
       } else {
-        await supabaseAdmin
-          .from("guardrails")
-          .insert({ stripe_test_clock_id: testClockId });
+        await supabaseAdmin.from("guardrails").insert({ stripe_test_clock_id: testClockId });
       }
     }
 
     const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
     const clockNow = clock.frozen_time;
+
+    // Anchor the first charge to the next month boundary (relative to clock time)
+    // so subscription creation generates NO invoice. The first "Advance Month"
+    // crosses this boundary and produces the first real invoice + webhook.
+    const billingAnchor = nextMonthBoundaryUnix(clockNow);
 
     // Shared product used across all tenant subscriptions
     const product = await stripe.products.create({
@@ -82,13 +94,26 @@ export const setupStripeDemo = createServerFn({ method: "POST" }).handler(
 
         // Attach a deterministic test PaymentMethod
         const pmToken = paymentMethodForBehavior(t.behavior_profile);
-        const pm = await stripe.paymentMethods.create({ type: "card", card: { token: pmToken === "pm_card_visa" ? "tok_visa" : pmToken === "pm_card_chargeDeclinedInsufficientFunds" ? "tok_chargeDeclinedInsufficientFunds" : "tok_chargeCustomerFail" } });
+        const pm = await stripe.paymentMethods.create({
+          type: "card",
+          card: {
+            token:
+              pmToken === "pm_card_visa"
+                ? "tok_visa"
+                : pmToken === "pm_card_chargeDeclinedInsufficientFunds"
+                  ? "tok_chargeDeclinedInsufficientFunds"
+                  : "tok_chargeCustomerFail",
+          },
+        });
         await stripe.paymentMethods.attach(pm.id, { customer: customer.id });
         await stripe.customers.update(customer.id, {
           invoice_settings: { default_payment_method: pm.id },
         });
 
-        // Monthly subscription = rent. Bills immediately at clock time.
+        // Monthly subscription = rent. trial_end anchored to the next month
+        // boundary means NO invoice is generated now; the first invoice fires
+        // when the test clock first crosses that boundary (first Advance Month).
+        // proration_behavior:"none" prevents any partial/setup invoice at create.
         const sub = await stripe.subscriptions.create({
           customer: customer.id,
           items: [
@@ -103,6 +128,8 @@ export const setupStripeDemo = createServerFn({ method: "POST" }).handler(
           ],
           collection_method: "charge_automatically",
           payment_behavior: "allow_incomplete",
+          trial_end: billingAnchor,
+          proration_behavior: "none",
           metadata: { tenant_id: t.id },
         });
 
@@ -201,27 +228,20 @@ export const getStripeStatus = createServerFn({ method: "GET" }).handler(
     const stripe = getStripe();
     const [{ data: gr }, { count: total }, { count: provisioned }, { count: evCount }] =
       await Promise.all([
-        supabaseAdmin
-          .from("guardrails")
-          .select("stripe_test_clock_id")
-          .maybeSingle(),
+        supabaseAdmin.from("guardrails").select("stripe_test_clock_id").maybeSingle(),
         supabaseAdmin.from("tenants").select("id", { count: "exact", head: true }),
         supabaseAdmin
           .from("tenants")
           .select("id", { count: "exact", head: true })
           .not("stripe_customer_id", "is", null),
-        supabaseAdmin
-          .from("payment_events")
-          .select("id", { count: "exact", head: true }),
+        supabaseAdmin.from("payment_events").select("id", { count: "exact", head: true }),
       ]);
 
     let time: number | null = null;
     let status: string | null = null;
     if (gr?.stripe_test_clock_id) {
       try {
-        const c = await stripe.testHelpers.testClocks.retrieve(
-          gr.stripe_test_clock_id,
-        );
+        const c = await stripe.testHelpers.testClocks.retrieve(gr.stripe_test_clock_id);
         time = c.frozen_time;
         status = c.status;
       } catch {

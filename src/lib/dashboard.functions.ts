@@ -13,51 +13,95 @@ export type DashboardKpis = {
   paymentPlanCount: number;
   humanReview: number;
   humanReviewCount: number;
+  failedAmount: number;
   autoClearedPct: number;
   autoClearedNumerator: number;
   autoClearedDenominator: number;
+  autoRecoveredPct: number;
+  humanReviewPct: number;
   supportTickets: number;
 };
 
 const num = (v: unknown) => (v == null ? 0 : Number(v));
 
+const DEFAULT_MONTH = "2026-05";
+
+/**
+ * The "active" demo month = the latest `month` present in rent_obligations.
+ * Falls back to DEFAULT_MONTH before any obligations exist (e.g. Scene 1, after
+ * setup but before the first Advance Month). Reusable by other read functions
+ * (exceptions, tenant portal) so every surface agrees on the current month.
+ */
+export async function getActiveMonth(): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from("rent_obligations")
+    .select("month")
+    .order("month", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.month) return DEFAULT_MONTH;
+  return data.month;
+}
+
+type ObligationRow = { status: string; amount: number };
+
 export const getDashboardKpis = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardKpis> => {
-    const month = "2026-05";
+    const month = await getActiveMonth();
 
-    const [{ data: kpi, error: kpiErr }, { data: rows, error: rowsErr }] =
-      await Promise.all([
-        supabaseAdmin.from("portfolio_kpis").select("*").maybeSingle(),
-        supabaseAdmin
-          .from("rent_obligations")
-          .select("status")
-          .eq("month", month),
-      ]);
+    const { data: rows, error: rowsErr } = await supabaseAdmin
+      .from("rent_obligations")
+      .select("status, amount")
+      .eq("month", month);
 
-    if (kpiErr) throw new Error(kpiErr.message);
     if (rowsErr) throw new Error(rowsErr.message);
 
-    const all = rows ?? [];
-    const cnt = (s: string) => all.filter((r) => r.status === s).length;
+    const all = (rows ?? []) as ObligationRow[];
     const total = all.length;
-    const autoCleared =
-      cnt("paid") + cnt("reconciled") + cnt("auto_recovered") + cnt("payment_plan");
+
+    // Count + euro-sum helpers, computed straight from rent_obligations for the
+    // active month (do NOT use the hard-coded-month KPI views).
+    const cnt = (...statuses: string[]) => all.filter((r) => statuses.includes(r.status)).length;
+    const sum = (...statuses: string[]) =>
+      all.filter((r) => statuses.includes(r.status)).reduce((acc, r) => acc + num(r.amount), 0);
+
+    const collectedCount = cnt("paid", "reconciled");
+    const recoveredCount = cnt("auto_recovered");
+    const paymentPlanCount = cnt("payment_plan");
+    const humanReviewCount = cnt("human_review");
+
+    const expected = all.reduce((acc, r) => acc + num(r.amount), 0);
+    const collected = sum("paid", "reconciled");
+    const recovered = sum("auto_recovered");
+    const paymentPlan = sum("payment_plan");
+    const humanReview = sum("human_review");
+    const failedAmount = sum("failed");
+
+    // Auto-cleared = obligations the agent actually resolved without a human:
+    // paid/reconciled, recovered on retry, or moved onto a payment plan. (Do NOT
+    // count still-pending/failed rows — they aren't cleared yet.)
+    const autoClearedNumerator = cnt("paid", "reconciled", "auto_recovered", "payment_plan");
+    const autoClearedDenominator = total;
+    const pct = (n: number) => (total > 0 ? Math.round((100 * n) / total) : 0);
 
     return {
       month,
-      tenantCount: num(kpi?.unit_count) || total,
-      expected: num(kpi?.expected_rent),
-      collected: num(kpi?.collected),
-      collectedCount: cnt("paid") + cnt("reconciled"),
-      recovered: num(kpi?.recovered_by_agent),
-      recoveredCount: cnt("auto_recovered"),
-      paymentPlan: num(kpi?.in_payment_plan),
-      paymentPlanCount: cnt("payment_plan"),
-      humanReview: num(kpi?.needs_human_review),
-      humanReviewCount: cnt("human_review"),
-      autoClearedPct: num(kpi?.auto_cleared_rate),
-      autoClearedNumerator: autoCleared,
-      autoClearedDenominator: total,
+      tenantCount: total,
+      expected,
+      collected,
+      collectedCount,
+      recovered,
+      recoveredCount,
+      paymentPlan,
+      paymentPlanCount,
+      humanReview,
+      humanReviewCount,
+      failedAmount,
+      autoClearedPct: pct(autoClearedNumerator),
+      autoClearedNumerator,
+      autoClearedDenominator,
+      autoRecoveredPct: pct(recoveredCount),
+      humanReviewPct: pct(humanReviewCount),
       supportTickets: 0,
     };
   },

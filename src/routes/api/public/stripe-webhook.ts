@@ -14,16 +14,11 @@ export const Route = createFileRoute("/api/public/stripe-webhook")({
 
         let event: Stripe.Event;
         try {
-          event = await stripe.webhooks.constructEventAsync(
-            body,
-            sig ?? "",
-            getWebhookSecret(),
-          );
+          event = await stripe.webhooks.constructEventAsync(body, sig ?? "", getWebhookSecret());
         } catch (e) {
-          return new Response(
-            `Webhook signature verification failed: ${(e as Error).message}`,
-            { status: 400 },
-          );
+          return new Response(`Webhook signature verification failed: ${(e as Error).message}`, {
+            status: 400,
+          });
         }
 
         try {
@@ -43,8 +38,9 @@ export const Route = createFileRoute("/api/public/stripe-webhook")({
 
 async function handleEvent(event: Stripe.Event) {
   switch (event.type) {
-    case "invoice.paid":
     case "invoice.payment_succeeded":
+      // Only handle payment_succeeded (Stripe also fires invoice.paid for the
+      // same invoice — handling both would double-insert payment_events).
       await onInvoicePaid(event.data.object as Stripe.Invoice);
       break;
     case "invoice.payment_failed":
@@ -65,9 +61,7 @@ type TenantCtx = {
   property_id: string;
 };
 
-async function resolveTenantCtx(
-  customerId: string | null,
-): Promise<TenantCtx | null> {
+async function resolveTenantCtx(customerId: string | null): Promise<TenantCtx | null> {
   if (!customerId) return null;
   const { data: tenant } = await supabaseAdmin
     .from("tenants")
@@ -86,8 +80,45 @@ async function resolveTenantCtx(
   };
 }
 
+// payment_events.failure_reason CHECK enum: insufficient_funds|invalid_mandate|chargeback_dispute
+type FailureReason = "insufficient_funds" | "invalid_mandate" | "chargeback_dispute";
+
+/**
+ * Map a free-text Stripe decline message/code to the 3-value DB enum.
+ * Defaults to "insufficient_funds" for recognized decline-ish text; returns
+ * null when truly unknown so we write NULL rather than violate the CHECK.
+ */
+function mapFailureReason(raw: string | null | undefined): FailureReason | null {
+  if (!raw) return "insufficient_funds";
+  const s = raw.toLowerCase();
+  if (
+    s.includes("mandate") ||
+    s.includes("authorization") ||
+    s.includes("authorisation") ||
+    s.includes("debit not authorized")
+  ) {
+    return "invalid_mandate";
+  }
+  if (s.includes("dispute") || s.includes("chargeback")) {
+    return "chargeback_dispute";
+  }
+  if (
+    s.includes("insufficient") ||
+    s.includes("funds") ||
+    s.includes("declin") ||
+    s.includes("card") ||
+    s.includes("nsf")
+  ) {
+    return "insufficient_funds";
+  }
+  // Unknown -> let the column be NULL instead of writing free text.
+  return null;
+}
+
 function invoiceMonth(inv: Stripe.Invoice): string {
-  const ts = (inv.period_end || inv.created) * 1000;
+  // Use period_start = the month the rent is FOR (period_end is the next
+  // boundary, which would label obligations a month ahead).
+  const ts = ((inv.period_start ?? inv.period_end ?? inv.created) as number) * 1000;
   const d = new Date(ts);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
@@ -126,12 +157,18 @@ async function upsertObligationFromInvoice(inv: Stripe.Invoice) {
       amount,
       month,
       due_date: due,
-      status: "expected",
+      // schema CHECK: pending|paid|reconciled|failed|auto_recovered|payment_plan|human_review
+      status: "pending",
       stripe_invoice_id: inv.id,
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  // Resilience: a single bad insert must not 500 the whole handler and block
+  // every downstream event. Log and bail out for this invoice only.
+  if (error) {
+    console.error("upsertObligationFromInvoice insert failed", inv.id, error.message);
+    return null;
+  }
   return inserted.id;
 }
 
@@ -142,18 +179,17 @@ async function onInvoicePaid(inv: Stripe.Invoice) {
   );
   if (!ctx || !obligationId) return;
 
-  await supabaseAdmin
-    .from("rent_obligations")
-    .update({ status: "paid" })
-    .eq("id", obligationId);
+  await supabaseAdmin.from("rent_obligations").update({ status: "paid" }).eq("id", obligationId);
 
   await supabaseAdmin.from("payment_events").insert({
     tenant_id: ctx.tenant_id,
     unit_id: ctx.unit_id,
     rent_obligation_id: obligationId,
-    type: "payment_succeeded",
+    // schema CHECK type: charged|succeeded|failed|retry
+    type: "succeeded",
     amount: (inv.amount_paid ?? 0) / 100,
-    source: "stripe",
+    // schema CHECK source: stripe_webhook|simulation
+    source: "stripe_webhook",
     stripe_event_id: inv.id,
     occurred_at: new Date().toISOString(),
   });
@@ -173,68 +209,39 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
   if (!ctx || !obligationId) return;
 
   const attemptCount = inv.attempt_count ?? 1;
-  const newStatus = attemptCount >= 3 ? "human_review" : "retry_scheduled";
+  // schema CHECK status: ...|failed|...|human_review. Pre-agent we only mark the
+  // obligation failed (or human_review once retries are exhausted). The recovery
+  // agent owns any later transition to auto_recovered / payment_plan / human_review.
+  const newStatus = attemptCount >= 3 ? "human_review" : "failed";
 
-  await supabaseAdmin
-    .from("rent_obligations")
-    .update({ status: newStatus })
-    .eq("id", obligationId);
+  await supabaseAdmin.from("rent_obligations").update({ status: newStatus }).eq("id", obligationId);
 
-  // Failure reason from last_payment_error if available
-  const charge = (inv as unknown as { last_finalization_error?: { message?: string } })
-    .last_finalization_error;
-  const reason = charge?.message ?? "card_declined";
+  // Failure reason from last_finalization_error if available, mapped to the enum.
+  const finErr = (
+    inv as unknown as { last_finalization_error?: { message?: string; code?: string } }
+  ).last_finalization_error;
+  const rawReason = finErr?.code ?? finErr?.message ?? null;
+  const failureReason = mapFailureReason(rawReason);
 
   await supabaseAdmin.from("payment_events").insert({
     tenant_id: ctx.tenant_id,
     unit_id: ctx.unit_id,
     rent_obligation_id: obligationId,
-    type: "payment_failed",
+    // schema CHECK type: charged|succeeded|failed|retry
+    type: "failed",
     amount: (inv.amount_due ?? 0) / 100,
-    failure_reason: reason,
-    source: "stripe",
+    // omit the field (NULL) when we couldn't map to the enum
+    ...(failureReason ? { failure_reason: failureReason } : {}),
+    // schema CHECK source: stripe_webhook|simulation
+    source: "stripe_webhook",
     stripe_event_id: inv.id,
     occurred_at: new Date().toISOString(),
   });
 
-  // Create / refresh exception
-  const { data: existingExc } = await supabaseAdmin
-    .from("exceptions")
-    .select("id")
-    .eq("rent_obligation_id", obligationId)
-    .maybeSingle();
-
-  const severity = attemptCount >= 3 ? "high" : "medium";
-  const recommended =
-    attemptCount >= 3 ? "escalate_to_human" : "schedule_retry";
-
-  if (existingExc) {
-    await supabaseAdmin
-      .from("exceptions")
-      .update({
-        severity,
-        recommended_action: recommended,
-        human_needed: attemptCount >= 3,
-        status: "open",
-      })
-      .eq("id", existingExc.id);
-  } else {
-    await supabaseAdmin.from("exceptions").insert({
-      tenant_id: ctx.tenant_id,
-      unit_id: ctx.unit_id,
-      rent_obligation_id: obligationId,
-      type: "payment_failed",
-      severity,
-      status: "open",
-      human_needed: attemptCount >= 3,
-      recommended_action: recommended,
-      risk_score: 50 + attemptCount * 10,
-    });
-  }
-
-  // Hand off to the AI recovery agent. It re-reads (or upserts) the exception
-  // and overwrites recommended_action / human_needed / status with its decision,
-  // then performs the chosen side effects (retry, plan offer, reminder, escalate).
+  // Hand off to the AI recovery agent. ensureExceptionForObligation creates a
+  // single schema-valid exception row; the agent then overwrites
+  // recommended_action / human_needed / status / risk_score with its decision
+  // and performs the chosen side effects (retry, plan offer, reminder, escalate).
   const exceptionId = await ensureExceptionForObligation({
     obligationId,
     tenantId: ctx.tenant_id,
@@ -249,7 +256,7 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
       rentObligationId: obligationId,
       invoiceId: inv.id ?? null,
       invoiceAmount: (inv.amount_due ?? 0) / 100,
-      failureReason: reason,
+      failureReason: failureReason ?? "insufficient_funds",
       attemptCount,
     });
   }
@@ -268,22 +275,31 @@ async function ensureExceptionForObligation(args: {
     .maybeSingle();
   if (found) return found.id;
 
-  // Fallback: prior insert may have failed CHECK; create a schema-valid row so
-  // the agent has something to update.
-  const { data: inserted } = await supabaseAdmin
+  // Create a schema-valid exception row so the agent always has something to
+  // update. All values below satisfy the CHECK constraints:
+  //   type ∈ payment_failed|repeated_failure|invalid_mandate|dispute
+  //   severity ∈ low|medium|high|critical
+  //   status ∈ open|in_progress|resolved|escalated
+  //   recommended_action ∈ retry|reminder|payment_plan|escalate
+  const escalating = args.attemptCount >= 3;
+  const { data: inserted, error } = await supabaseAdmin
     .from("exceptions")
     .insert({
       tenant_id: args.tenantId,
       unit_id: args.unitId,
       rent_obligation_id: args.obligationId,
-      type: "payment_failed",
-      severity: "medium",
+      type: escalating ? "repeated_failure" : "payment_failed",
+      severity: escalating ? "high" : "medium",
       status: "open",
-      human_needed: false,
-      recommended_action: "retry",
+      human_needed: escalating,
+      recommended_action: escalating ? "escalate" : "retry",
       risk_score: 50 + args.attemptCount * 10,
     })
     .select("id")
     .single();
+  if (error) {
+    console.error("ensureExceptionForObligation insert failed", args.obligationId, error.message);
+    return null;
+  }
   return inserted?.id ?? null;
 }

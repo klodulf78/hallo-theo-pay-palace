@@ -16,9 +16,20 @@ dist-ssr
 .nitro
 *.local
 
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
+
+# Stray npm lockfile (this project uses bun.lock)
+package-lock.json
+
+# Local Stripe CLI binary
+stripe.exe
 
 # Editor directories and files
 .vscode/*

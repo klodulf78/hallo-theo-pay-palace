@@ -40,7 +40,7 @@ Server-side data goes through TanStack Start server functions in `src/lib/*.func
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | `client.ts` | Anon key for client-side queries |
 | `Stripe_Sandbox` *(or `STRIPE_SECRET_KEY`)* | `src/lib/stripe.server.ts` | Stripe test-mode secret key |
 | `Webhook_stripe` *(or `WEBHOOK_STRIPE`)* | `src/lib/stripe.server.ts` | Stripe webhook signing secret |
-| `LOVABLE_API_KEY` | `ai-summary.functions.ts`, `payment-recovery-agent.server.ts` | Lovable AI gateway key |
+| `LOVABLE_API_KEY` | `ai-summary.functions.ts`, `payment-recovery-agent.server.ts` | Lovable AI gateway key. **Optional** — without it the agent uses a deterministic policy engine (retry/plan/escalate by risk); only the AI-written cycle summary is skipped |
 
 The env var name capitalization here (`Stripe_Sandbox`, `Webhook_stripe`) reflects how the existing `stripe.server.ts` wrapper looks them up.
 
@@ -51,9 +51,11 @@ The demo uses Stripe Test Clocks to fast-forward time deterministically. `src/li
 | Tenant `behavior_profile` | Stripe test PM | Outcome on charge |
 |---|---|---|
 | `reliable` | `pm_card_visa` | Succeeds |
-| `soft_fail` | `pm_card_chargeDeclinedInsufficientFunds` | Declines |
-| `payment_plan` | `pm_card_visa` | Succeeds (used for plan installments) |
-| `critical` | `pm_card_chargeCustomerFail` | Always fails |
+| `soft_fail` | `pm_card_chargeDeclinedInsufficientFunds` | Declines → agent retries with a good card → recovers |
+| `payment_plan` | `pm_card_chargeDeclinedInsufficientFunds` | Declines → agent offers a 2-part plan (high risk) |
+| `critical` | `pm_card_chargeCustomerFail` | Always fails → agent escalates |
+
+`soft_fail` and `payment_plan` use the **same declining card**; the agent differentiates them by risk score (low → retry to recovery; high → offer plan). The retry uses `recoverInvoiceWithGoodCard` to swap to a working card so the soft-fail clears.
 
 This produces deterministic real-Stripe outcomes the agent can react to.
 

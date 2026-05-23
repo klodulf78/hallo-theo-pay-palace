@@ -4,10 +4,12 @@ import { CreditCard, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { setupStripeDemo, getStripeStatus } from "@/lib/stripe.functions";
+import { seedDemoData } from "@/lib/seed.functions";
 import { useCycle } from "@/lib/cycle-store";
 
 export function StripeSetupCard() {
   const cycle = useCycle();
+  const seedFn = useServerFn(seedDemoData);
   const setupFn = useServerFn(setupStripeDemo);
   const statusFn = useServerFn(getStripeStatus);
 
@@ -17,14 +19,18 @@ export function StripeSetupCard() {
     refetchInterval: 5000,
   });
 
+  const seed = useMutation({
+    mutationFn: () => seedFn(),
+    onSettled: () => status.refetch(),
+  });
+
   const setup = useMutation({
     mutationFn: () => setupFn(),
     onSettled: () => status.refetch(),
   });
 
   const s = status.data;
-  const isReady =
-    !!s && s.tenantsProvisioned === s.tenantsTotal && s.tenantsTotal > 0;
+  const isReady = !!s && s.tenantsProvisioned === s.tenantsTotal && s.tenantsTotal > 0;
   const clockDate = s?.testClockTime
     ? new Date(s.testClockTime * 1000).toISOString().slice(0, 10)
     : "—";
@@ -61,20 +67,51 @@ export function StripeSetupCard() {
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
         <Stat label="Clock date" value={clockDate} />
         <Stat label="Status" value={s?.testClockStatus ?? "—"} />
-        <Stat
-          label="Provisioned"
-          value={s ? `${s.tenantsProvisioned} / ${s.tenantsTotal}` : "—"}
-        />
+        <Stat label="Provisioned" value={s ? `${s.tenantsProvisioned} / ${s.tenantsTotal}` : "—"} />
         <Stat label="Payment events" value={s?.paymentEvents?.toString() ?? "—"} />
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button
+          onClick={() => seed.mutate()}
+          disabled={seed.isPending}
+          variant="secondary"
+          className="gap-2"
+        >
+          {seed.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {seed.isPending ? "Seeding demo data…" : "Seed demo data"}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Creates 1 owner, 1 property, 12 units, 12 tenants & SEPA mandates (run this first)
+        </span>
+      </div>
+
+      {seed.data && (
+        <div className="mt-3 rounded-md border border-[var(--status-paid)]/30 bg-[var(--status-paid)]/5 p-3 text-xs text-[var(--status-paid)]">
+          {seed.data.skipped ? (
+            <div className="font-medium">Demo data already present — nothing to seed.</div>
+          ) : (
+            <>
+              <div className="font-medium mb-1">Seed complete:</div>
+              <span>
+                {seed.data.ownersCreated} owner · {seed.data.propertiesCreated} property ·{" "}
+                {seed.data.unitsCreated} units · {seed.data.tenantsCreated} tenants ·{" "}
+                {seed.data.mandatesCreated} SEPA mandates
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
+      {seed.error && (
+        <div className="mt-3 rounded-md border border-[var(--status-review)]/30 bg-[var(--status-review)]/5 p-3 text-xs text-[var(--status-review)]">
+          Seeding failed: {(seed.error as Error).message}
+        </div>
+      )}
+
       {!isReady && (
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button
-            onClick={() => setup.mutate()}
-            disabled={setup.isPending}
-            className="gap-2"
-          >
+          <Button onClick={() => setup.mutate()} disabled={setup.isPending} className="gap-2">
             {setup.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             {setup.isPending ? "Provisioning Stripe…" : "Setup Stripe Demo"}
           </Button>
