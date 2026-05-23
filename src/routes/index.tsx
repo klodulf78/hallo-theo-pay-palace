@@ -8,7 +8,9 @@ import { useAdvancing, useCycle } from "@/lib/cycle-store";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StripeSetupCard } from "@/components/stripe-setup-card";
+import { RecentEventsCard } from "@/components/recent-events-card";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
