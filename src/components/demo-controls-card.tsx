@@ -5,9 +5,7 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { addTenant } from "@/lib/add-tenant.functions";
-import { runSepaRun } from "@/lib/validation.functions";
-import { advanceMonth, useAdvancing } from "@/lib/cycle-store";
-import { advanceStripeMonth } from "@/lib/stripe.functions";
+import { runSepaRun, advanceSimulatedMonth } from "@/lib/validation.functions";
 
 export function DemoControlsCard() {
   const qc = useQueryClient();
