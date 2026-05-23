@@ -11,8 +11,7 @@ export function DemoControlsCard() {
   const qc = useQueryClient();
   const addTenantFn = useServerFn(addTenant);
   const sepaFn = useServerFn(runSepaRun);
-  const advanceFn = useServerFn(advanceStripeMonth);
-  const advancing = useAdvancing();
+  const advanceFn = useServerFn(advanceSimulatedMonth);
 
   const addM = useMutation({
     mutationFn: () => addTenantFn(),
@@ -45,11 +44,7 @@ export function DemoControlsCard() {
   });
 
   const monthM = useMutation({
-    mutationFn: async () => {
-      await advanceMonth();
-      // Re-fetch the message from the underlying fn for the toast
-      return advanceFn();
-    },
+    mutationFn: () => advanceFn(),
     onSuccess: (d) => {
       toast.success(d.message, {
         description: d.dunning?.stages_issued
@@ -58,6 +53,8 @@ export function DemoControlsCard() {
       });
       qc.invalidateQueries();
     },
+    onError: (e: Error) =>
+      toast.error("Monat simulieren fehlgeschlagen", { description: e.message }),
   });
 
   return (
@@ -76,16 +73,16 @@ export function DemoControlsCard() {
           onClick={() => addM.mutate()}
         />
         <BigButton
-          icon={<Calendar className="h-5 w-5" />}
-          label="Monat simulieren"
-          loading={advancing || monthM.isPending}
-          onClick={() => monthM.mutate()}
-        />
-        <BigButton
           icon={<CreditCard className="h-5 w-5" />}
           label="SEPA-Lauf starten"
           loading={sepaM.isPending}
           onClick={() => sepaM.mutate()}
+        />
+        <BigButton
+          icon={<Calendar className="h-5 w-5" />}
+          label="Monat simulieren"
+          loading={monthM.isPending}
+          onClick={() => monthM.mutate()}
         />
       </div>
     </Card>
