@@ -95,7 +95,7 @@ export const setupStripeDemo = createServerFn({ method: "POST" }).handler(
             {
               price_data: {
                 currency: "eur",
-                product_data: { name: `Miete – ${t.name}` },
+                product: product.id,
                 unit_amount: Math.round(Number(t.rent_amount) * 100),
                 recurring: { interval: "month" },
               },
