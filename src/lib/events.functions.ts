@@ -16,7 +16,7 @@ export const getRecentWebhookEvents = createServerFn({ method: "GET" }).handler(
       .from("payment_events")
       .select("id, type, amount, failure_reason, occurred_at, created_at, tenants(name)")
       .order("created_at", { ascending: false })
-      .limit(25);
+      .limit(100);
 
     if (error) throw new Error(error.message);
 
