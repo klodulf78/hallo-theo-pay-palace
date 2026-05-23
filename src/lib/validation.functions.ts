@@ -120,7 +120,7 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
     }
 
     return {
-      simulatedNow: gr?.simulated_now ?? null,
+      simulatedNow,
       counts: {
         tenants: tenants.count ?? 0,
         rent_obligations: obligations.count ?? 0,
