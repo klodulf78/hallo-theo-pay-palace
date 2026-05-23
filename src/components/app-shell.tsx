@@ -77,20 +77,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
-          <Button
-            onClick={() => {
-              void advanceMonth();
-            }}
-            disabled={advancing}
-            className="gap-2"
-          >
-            {advancing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4 fill-current" />
-            )}
-            {advancing ? "Advancing…" : "Advance Month"}
-          </Button>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8">
