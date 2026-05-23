@@ -23,19 +23,22 @@ const num = (v: unknown) => (v == null ? 0 : Number(v));
 
 export const getDashboardKpis = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardKpis> => {
-    const month = "2026-05";
-
-    const [{ data: kpi, error: kpiErr }, { data: rows, error: rowsErr }] =
-      await Promise.all([
-        supabaseAdmin.from("portfolio_kpis").select("*").maybeSingle(),
-        supabaseAdmin
-          .from("rent_obligations")
-          .select("status")
-          .eq("month", month),
-      ]);
-
+    const { data: kpi, error: kpiErr } = await supabaseAdmin
+      .from("portfolio_kpis")
+      .select("*")
+      .maybeSingle();
     if (kpiErr) throw new Error(kpiErr.message);
+
+    const month =
+      (kpi?.month as string | undefined) ??
+      new Date().toISOString().slice(0, 7);
+
+    const { data: rows, error: rowsErr } = await supabaseAdmin
+      .from("rent_obligations")
+      .select("status")
+      .eq("month", month);
     if (rowsErr) throw new Error(rowsErr.message);
+
 
     const all = rows ?? [];
     const cnt = (s: string) => all.filter((r) => r.status === s).length;
