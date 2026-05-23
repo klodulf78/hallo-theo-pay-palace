@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StripeSetupCard } from "@/components/stripe-setup-card";
 import { RecentEventsCard } from "@/components/recent-events-card";
+import { AddTenantButton } from "@/components/add-tenant-button";
 import { cn } from "@/lib/utils";
 
 
