@@ -149,7 +149,7 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
           .insert({
             tenant_id: t.id,
             unit_id: t.unit_id,
-            property_id: unit?.property_id,
+            property_id: unit?.property_id ?? null,
             month: monthStr,
             due_date: dueDate,
             amount: t.rent_amount,
