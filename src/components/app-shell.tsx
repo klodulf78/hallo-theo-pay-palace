@@ -5,11 +5,13 @@ import {
   Activity,
   UserCircle2,
   Building2,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
+  { label: "Demo-Ablauf", to: "/demo-flow", icon: Workflow },
   { label: "Exceptions", to: "/exceptions", icon: AlertTriangle },
   { label: "Activity", to: "/activity", icon: Activity },
   { label: "Tenant Portal", to: "/tenant-portal", icon: UserCircle2 },
