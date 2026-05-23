@@ -177,86 +177,96 @@ async function obligationHasPaymentEvent(obligationId: string): Promise<boolean>
   return Boolean(data);
 }
 
-export const runSepaRun = createServerFn({ method: "POST" }).handler(
-  async (): Promise<{ triggered: number; skipped: number; errors: string[] }> => {
-    const stripe = getStripe();
+type SepaRunResult = {
+  triggered: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+};
 
-    const simulatedNow = await ensureSimulatedNow();
-    const today = new Date(simulatedNow);
-    const year = today.getUTCFullYear();
-    const month = today.getUTCMonth();
-    const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const dueDate = firstWorkingDayOfMonth(monthStr);
+async function runSepaForMonth(simulatedNow: string): Promise<SepaRunResult> {
+  const stripe = getStripe();
 
-    // Tenants with stripe customer + active mandate
-    const { data: tenants, error } = await supabaseAdmin
-      .from("tenants")
-      .select(
-        "id, name, rent_amount, stripe_customer_id, unit_id, behavior_profile, sepa_mandates!inner(id, status)",
-      )
-      .not("stripe_customer_id", "is", null)
-      .eq("sepa_mandates.status", "active");
-    if (error) throw new Error(error.message);
+  const today = new Date(simulatedNow);
+  const year = today.getUTCFullYear();
+  const month = today.getUTCMonth();
+  const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const dueDate = firstWorkingDayOfMonth(monthStr);
 
-    let triggered = 0;
-    let skipped = 0;
-    const errors: string[] = [];
+  const { data: tenants, error } = await supabaseAdmin
+    .from("tenants")
+    .select(
+      "id, name, rent_amount, stripe_customer_id, unit_id, behavior_profile, sepa_mandates!inner(id, status)",
+    )
+    .not("stripe_customer_id", "is", null)
+    .eq("sepa_mandates.status", "active");
+  if (error) throw new Error(error.message);
 
-    for (const t of tenants ?? []) {
-      try {
-        const { data: unit } = await supabaseAdmin
-          .from("units")
-          .select("property_id")
-          .eq("id", t.unit_id)
-          .maybeSingle();
-        if (!unit?.property_id) {
-          skipped++;
-          continue;
-        }
+  let triggered = 0;
+  let succeeded = 0;
+  let failed = 0;
+  let skipped = 0;
+  const errors: string[] = [];
 
-        // Idempotency: skip if rent_obligation already exists
-        const { data: existing } = await supabaseAdmin
+  for (const t of tenants ?? []) {
+    try {
+      const { data: unit } = await supabaseAdmin
+        .from("units")
+        .select("property_id")
+        .eq("id", t.unit_id)
+        .maybeSingle();
+      if (!unit?.property_id) {
+        skipped++;
+        continue;
+      }
+
+      const { data: existing } = await supabaseAdmin
+        .from("rent_obligations")
+        .select("id")
+        .eq("tenant_id", t.id)
+        .eq("month", monthStr)
+        .maybeSingle();
+
+      let obligationId: string;
+      if (existing) {
+        obligationId = existing.id;
+      } else {
+        const { data: ins, error: insErr } = await supabaseAdmin
           .from("rent_obligations")
+          .insert({
+            tenant_id: t.id,
+            unit_id: t.unit_id,
+            property_id: unit.property_id,
+            month: monthStr,
+            due_date: dueDate,
+            amount: t.rent_amount,
+            status: "pending",
+          })
           .select("id")
-          .eq("tenant_id", t.id)
-          .eq("month", monthStr)
-          .maybeSingle();
+          .single();
+        if (insErr) throw new Error(insErr.message);
+        obligationId = ins.id;
+      }
 
-        let obligationId: string;
-        if (existing) {
-          obligationId = existing.id;
-        } else {
-          const { data: ins, error: insErr } = await supabaseAdmin
-            .from("rent_obligations")
-            .insert({
-              tenant_id: t.id,
-              unit_id: t.unit_id,
-              property_id: unit.property_id,
-              month: monthStr,
-              due_date: dueDate,
-              amount: t.rent_amount,
-              status: "pending",
-            })
-            .select("id")
-            .single();
-          if (insErr) throw new Error(insErr.message);
-          obligationId = ins.id;
-        }
+      // Idempotency: if this obligation already has a payment_event, don't
+      // re-charge — prevents duplicate Stripe PaymentIntents on double-click.
+      if (await obligationHasPaymentEvent(obligationId)) {
+        skipped++;
+        continue;
+      }
 
-        // Self-heal stale customer
-        const customerId = await ensureStripeCustomer(stripe, t);
+      const customerId = await ensureStripeCustomer(stripe, t);
 
-        // Deterministic test PMs: critical profile → declined, else → success.
-        // These Stripe-managed PaymentMethod tokens work without being attached
-        // to the customer and are idempotent across runs.
-        const pmToken =
-          t.behavior_profile === "critical"
-            ? "pm_card_chargeDeclined"
-            : "pm_card_visa";
-        const amount = Math.round(Number(t.rent_amount) * 100);
+      const pmToken =
+        t.behavior_profile === "critical"
+          ? "pm_card_chargeDeclined"
+          : "pm_card_visa";
+      const amount = Math.round(Number(t.rent_amount) * 100);
 
-        try {
-          const pi = await stripe.paymentIntents.create({
+      try {
+        const pi = await stripe.paymentIntents.create(
+          {
             customer: customerId,
             amount,
             currency: "eur",
@@ -268,65 +278,79 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
               rent_obligation_id: obligationId,
               month: monthStr,
             },
-          });
-          console.log(
-            `[runSepaRun] ${t.name}: PaymentIntent ${pi.id} status=${pi.status}`,
-          );
-          if (pi.status === "succeeded" && !(await obligationHasPaymentEvent(obligationId))) {
-            await supabaseAdmin.from("payment_events").insert({
-              rent_obligation_id: obligationId,
-              tenant_id: t.id,
-              unit_id: t.unit_id,
-              type: "succeeded",
-              amount: Number(t.rent_amount),
-              source: "simulation",
-              stripe_event_id: pi.id,
-              occurred_at: new Date(pi.created * 1000).toISOString(),
-            });
-            await supabaseAdmin
-              .from("rent_obligations")
-              .update({
-                status: "paid",
-                dunning_stage: 0,
-                default_since: null,
-                accrued_dunning_fees: 0,
-                accrued_default_interest: 0,
-              })
-              .eq("id", obligationId);
-          }
-        } catch (piErr) {
-          const msg = (piErr as Error).message;
-          console.warn(
-            `[runSepaRun] PaymentIntent failed (expected for critical): ${t.name}: ${msg}`,
-          );
-          // Record a constraint-compliant payment_event so the failure
-          // surfaces in the UI even without webhook delivery.
+          },
+          {
+            // Idempotency key prevents Stripe-side duplication if the call
+            // is replayed within 24h for the same obligation.
+            idempotencyKey: `sepa-${obligationId}`,
+          },
+        );
+        console.log(
+          `[runSepaForMonth] ${t.name}: PaymentIntent ${pi.id} status=${pi.status}`,
+        );
+        if (
+          pi.status === "succeeded" &&
+          !(await obligationHasPaymentEvent(obligationId))
+        ) {
           await supabaseAdmin.from("payment_events").insert({
             rent_obligation_id: obligationId,
             tenant_id: t.id,
             unit_id: t.unit_id,
-            type: "failed",
+            type: "succeeded",
             amount: Number(t.rent_amount),
-            failure_reason: "insufficient_funds",
             source: "simulation",
-            occurred_at: new Date().toISOString(),
+            stripe_event_id: pi.id,
+            occurred_at: new Date(pi.created * 1000).toISOString(),
           });
           await supabaseAdmin
             .from("rent_obligations")
-            .update({ status: "failed" })
+            .update({
+              status: "paid",
+              dunning_stage: 0,
+              default_since: null,
+              accrued_dunning_fees: 0,
+              accrued_default_interest: 0,
+            })
             .eq("id", obligationId);
+          succeeded++;
         }
-
-        triggered++;
-      } catch (e) {
-        errors.push(`${t.name}: ${(e as Error).message}`);
+      } catch (piErr) {
+        const msg = (piErr as Error).message;
+        console.warn(
+          `[runSepaForMonth] PaymentIntent failed (expected for critical): ${t.name}: ${msg}`,
+        );
+        await supabaseAdmin.from("payment_events").insert({
+          rent_obligation_id: obligationId,
+          tenant_id: t.id,
+          unit_id: t.unit_id,
+          type: "failed",
+          amount: Number(t.rent_amount),
+          failure_reason: "insufficient_funds",
+          source: "simulation",
+          occurred_at: new Date().toISOString(),
+        });
+        await supabaseAdmin
+          .from("rent_obligations")
+          .update({ status: "failed" })
+          .eq("id", obligationId);
+        failed++;
       }
-    }
 
-    return { triggered, skipped, errors };
+      triggered++;
+    } catch (e) {
+      errors.push(`${t.name}: ${(e as Error).message}`);
+    }
+  }
+
+  return { triggered, succeeded, failed, skipped, errors };
+}
+
+export const runSepaRun = createServerFn({ method: "POST" }).handler(
+  async (): Promise<SepaRunResult> => {
+    const simulatedNow = await ensureSimulatedNow();
+    return runSepaForMonth(simulatedNow);
   },
 );
-
 
 export const advanceSimulatedMonth = createServerFn({ method: "POST" }).handler(
   async (): Promise<{
@@ -334,6 +358,7 @@ export const advanceSimulatedMonth = createServerFn({ method: "POST" }).handler(
     to: string;
     message: string;
     stripeAdvanced: boolean;
+    sepa: SepaRunResult;
     dunning: { stages_issued?: number; error?: string } | null;
   }> => {
     const from = await ensureSimulatedNow();
@@ -350,8 +375,7 @@ export const advanceSimulatedMonth = createServerFn({ method: "POST" }).handler(
         .eq("id", gr.id);
     }
 
-    // Best-effort: nudge the Stripe test clock to the new simulated date so
-    // subscription invoices align with the demo timeline.
+    // Best-effort: nudge the Stripe test clock to the new simulated date.
     let stripeAdvanced = false;
     if (gr?.stripe_test_clock_id) {
       try {
@@ -368,6 +392,12 @@ export const advanceSimulatedMonth = createServerFn({ method: "POST" }).handler(
       }
     }
 
+    // Run SEPA-Lauf for the new month (idempotent).
+    const sepa = await runSepaForMonth(to);
+
+    // Brief settle window for webhooks (synchronous path already recorded events).
+    await new Promise((r) => setTimeout(r, 2000));
+
     // Trigger dunning engine for the new "today".
     let dunning: { stages_issued?: number; error?: string } | null = null;
     try {
@@ -380,12 +410,24 @@ export const advanceSimulatedMonth = createServerFn({ method: "POST" }).handler(
       dunning = { error: (e as Error).message };
     }
 
+    const monthLabel = new Date(`${to}T00:00:00Z`).toLocaleDateString("de-DE", {
+      month: "long",
+      year: "numeric",
+    });
+    const stages = dunning?.stages_issued ?? 0;
+    const message =
+      `Monat ${monthLabel} simuliert: ${sepa.triggered} neue Mieten · ` +
+      `${sepa.succeeded} erfolgreich · ${sepa.failed} fehlgeschlagen · ` +
+      `${stages} neue Mahnungen.`;
+
     return {
       from,
       to,
-      message: `Demo-Datum: ${from} → ${to}`,
+      message,
       stripeAdvanced,
+      sepa,
       dunning,
     };
   },
 );
+
