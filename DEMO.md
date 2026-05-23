@@ -4,13 +4,13 @@ One cycle. One failure. One recovery. One escalation. **Zero manual work.**
 
 ## 0. Prerequisites (env)
 
-Only the Supabase URL + anon key are currently in `.env`. Before a live run, also set:
+Set these in `.env` (values **unquoted**) before a live run:
 
 | Variable | Why |
 |---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | **Required** — every server function uses the service-role client; nothing works without it. |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Required** — must be the real **`service_role`** secret (its JWT `role` claim is `service_role`), NOT the anon/publishable key. Every server function writes via this client; with the anon key all writes are silently blocked by RLS. |
 | `Stripe_Sandbox` (or `STRIPE_SECRET_KEY`) | Stripe test-mode secret key. |
-| `Webhook_stripe` | Stripe webhook signing secret (printed by `stripe listen`, see below). |
+| `Webhook_stripe` *(or `STRIPE_WEBHOOK_KEY`)* | Stripe webhook signing secret — the `whsec_…` that `stripe listen` prints (see below). |
 | `LOVABLE_API_KEY` | **Optional.** AI cycle summary + LLM recovery decisions. Without it the agent uses a deterministic policy engine (still retries / offers plans / escalates correctly by risk); only the AI-written summary text is skipped. |
 
 ## 1. Start
@@ -18,10 +18,18 @@ Only the Supabase URL + anon key are currently in `.env`. Before a live run, als
 ```sh
 bun install
 bun run dev          # http://localhost:8080
-# in a second terminal — forward Stripe events to the webhook:
-stripe listen --forward-to localhost:8080/api/public/stripe-webhook
-# copy the printed "whsec_..." into .env as Webhook_stripe, then restart dev
+
+# in a second terminal — forward Stripe events to the webhook.
+# Use ./stripe.exe if the Stripe CLI isn't on PATH; authenticate with the secret
+# key (or run `stripe login` once):
+stripe listen --api-key "$STRIPE_SECRET_KEY" \
+  --forward-to localhost:8080/api/public/stripe-webhook
+# copy the printed "whsec_..." into .env as Webhook_stripe (or STRIPE_WEBHOOK_KEY),
+# then restart `bun run dev` so it picks up the secret
 ```
+
+> Sanity-check the agent's risk + decision policy offline anytime (no DB/Stripe):
+> `bun scripts/verify-agent.ts`
 
 ## 2. Arm the demo (one-time, from the dashboard `/`)
 
@@ -37,6 +45,10 @@ The payment method per tenant is deterministic (via `behavior_profile`): `reliab
 `soft_fail` and `payment_plan` → decline initially (the agent then retries the soft-fail to
 recovery and offers the payment-plan tenant a 2-part plan, based on risk); `critical` → always
 fails (escalates).
+
+> Note: with the current Test Clock anchor the first billed cycle is the month **after**
+> `DEMO_START_UNIX` (≈ June 2026); the dashboard follows whatever month the obligations land in.
+> Shift `DEMO_START_UNIX` if you want the label to read "May".
 
 ## 3. The 5-minute script
 
@@ -69,7 +81,7 @@ Headline: ~92% auto-cleared · ~6% auto-recovered · ~2% human review.
 
 - **Stripe live flaky:** the event contract mirrors Stripe webhooks — a Stripe-shaped fake-event
   path can drive the same handler; or show a pre-created Stripe test object.
-- **LLM/agent down:** the recovery agent falls back to deterministic escalation automatically;
-  present it as a policy-controlled agent.
+- **LLM/agent down:** with no `LOVABLE_API_KEY` the recovery agent uses its deterministic policy
+  engine (retry / plan / escalate by risk); present it as a policy-controlled agent.
 - **Supabase down:** restate with seeded data; the schema shape is the contract.
 - **Deploy down:** demo locally on `localhost:8080`.

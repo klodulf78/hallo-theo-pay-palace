@@ -1,74 +1,69 @@
 # hallo flow — open issues / unsolved problems
 
-_Last updated: 2026-05-24. Tracks what still blocks a live end-to-end demo. Code is built,
-typechecks, and bundles; the remaining items are credentials/tooling and a data reset._
+_Last updated: 2026-05-24. Code is built, typechecks, bundles, and is committed
+(`7f6928e`). **One hard blocker** remains before a live end-to-end demo can run: a valid
+Supabase service-role key. Everything else below is a runtime step, a low-impact polish item,
+or a pending decision._
 
-## 🔴 Blockers (need action before the live cycle can run)
+## 🔴 Hard blocker (must fix before the live cycle can run)
 
 1. **Real Supabase `service_role` key.** `SUPABASE_SERVICE_ROLE_KEY` in `.env` currently holds
-   the **anon** key (JWT `role: anon`). Anon can read (public-read RLS) but **all server-side
-   writes are silently blocked by RLS** — seed, Stripe setup, webhook obligation/exception
-   writes, and agent actions all fail. The app writes only via the service-role client
+   the **anon** key (confirmed: JWT `role: anon`). Anon can read (public-read RLS) but **all
+   server-side writes are silently blocked by RLS** — seed, Stripe setup, webhook
+   obligation/exception writes, and agent actions all fail (a delete attempt was a silent
+   no-op). The app writes only via the service-role client
    (`src/integrations/supabase/client.server.ts`), which bypasses RLS.
    - **Fix:** Dashboard → Project Settings → API → reveal the **`service_role` `secret`** key
      (or a newer `sb_secret_…` key) → paste into `.env` as `SUPABASE_SERVICE_ROLE_KEY`,
-     unquoted. Verify its JWT decodes to `role: service_role`.
+     unquoted. Confirm it decodes to `role: service_role`.
    - Link: https://supabase.com/dashboard/project/nyftqbzxhlenszmeinwe/settings/api
 
-2. **Webhook signing secret must match `stripe listen`.** `stripe listen` mints its **own**
-   `whsec_…` each session; the current `STRIPE_WEBHOOK_KEY` value likely won't match its
-   signature, so webhook verification will 400. At run time, set `STRIPE_WEBHOOK_KEY` to the
-   `whsec_…` that `stripe listen --forward-to localhost:8080/api/public/stripe-webhook` prints.
-   (`getWebhookSecret()` already accepts `STRIPE_WEBHOOK_KEY`.)
+## 🟡 Runtime steps (ready; just need to be done at run time, after #1)
 
-## 🟡 Blocked on #1 (will do once the key is valid)
-
+2. **Set the webhook secret to `stripe listen`'s value.** `stripe listen` mints its **own**
+   `whsec_…` each session. Run `./stripe.exe listen --api-key "$STRIPE_SECRET_KEY"
+   --forward-to localhost:8080/api/public/stripe-webhook`, then put the printed `whsec_…` into
+   `.env` as `STRIPE_WEBHOOK_KEY` (or `Webhook_stripe`) and restart `bun run dev`.
+   _(Code already accepts `STRIPE_WEBHOOK_KEY`; `stripe.exe` v1.41.2 is present.)_
 3. **Reset stale demo data + run the cycle.** Supabase still has 5 leftover tenants
    (Anna Schmidt, etc. / `WE-001…` units / property "Berlin Mitte Portfolio") from an earlier
-   session — they don't match the 12-tenant roster and would pollute the dashboard. Plan once
-   writes work: reset → `seedDemoData` (12 tenants) → `setupStripeDemo` → `stripe listen` →
-   `advanceStripeMonth` → verify scripted outcome (8 paid, 2 recovered, Kaya on a plan, Richter
-   escalated). _My earlier delete attempt was a silent no-op because of the anon key, so nothing
-   was lost._
+   session that don't match the 12-tenant roster. Once #1 is fixed: reset → `seedDemoData` →
+   `setupStripeDemo` → `stripe listen` → `advanceStripeMonth` → verify the scripted outcome
+   (8 paid, 2 recovered, Kaya on a plan, Richter escalated). See `DEMO.md`.
 
-## 🟢 Minor / optional
+## 🟢 Low-impact / optional
 
-4. **`LOVABLE_API_KEY` not set.** Optional — the agent uses the deterministic policy engine
-   without it; only the AI-written cycle-summary text is skipped.
-5. **Pre-existing CRLF lint errors.** `bun run lint` reports ~6700 `Delete ␍` errors across
-   untouched files (Windows CRLF checkout vs LF prettier config). Run a `prettier --write` pass
-   to clear. Not introduced by recent work.
-6. **`.env` values are quoted.** Store secrets unquoted to avoid runtime parsing surprises
-   (the URL parse failed on quotes in standalone checks).
+- **`LOVABLE_API_KEY` not set** — optional; the agent uses the deterministic policy engine
+  without it, only the AI-written cycle-summary text is skipped.
+- **Deferred code-review findings** (none demo-breaking):
+  - `recoverInvoiceWithGoodCard` doesn't pre-check invoice status → an already-paid/void invoice
+    is reported as a failed retry; a non-paid "open" result leaves the obligation non-terminal.
+  - `stripe_event_id` stores the invoice id, not the Stripe event id → redeliveries aren't deduped.
+  - `failure_reason` is read from `last_finalization_error` (usually empty on charge declines) →
+    nearly always defaults to `insufficient_funds` (cosmetic).
+  - `setupStripeDemo`/seed read `guardrails` with `.maybeSingle()` → would throw if >1 row exists.
+  - `runExceptionAction` recomputes risk without the behavior baseline (manual-action risk is
+    heuristic-only).
+  - AI cycle-summary `KpiSchema` omits failedAmount/autoRecoveredPct/humanReviewPct (zod strips them).
+  - Demo month resolves to **June** (Stripe trial anchor), not the PRD's "May" — update copy or
+    shift `DEMO_START_UNIX` if the label matters for the pitch.
 
-## 🔎 Deferred code-review findings (low impact, 2026-05-24)
+## ⏳ Pending decisions
 
-Fixed in the review pass: `payment_events` `payment_failed`→`failed` read mismatch (risk + manual
-actions); auto-cleared KPI counting pending/failed; double-processing of `invoice.paid` +
-`invoice.payment_succeeded`; `acceptPaymentPlan` idempotency guard; tenant portal treating
-`pending`/`expected` as outstanding; `invoiceMonth` using `period_end`. Still open, low impact:
-
-- `recoverInvoiceWithGoodCard` doesn't pre-check invoice status → an already-paid/void invoice is
-  reported as a failed retry; a non-paid "open" result leaves the obligation in no terminal state.
-- `stripe_event_id` stores the invoice id, not the Stripe event id → webhook redeliveries aren't deduped.
-- `failure_reason` is read from `last_finalization_error` (usually empty on charge declines) → nearly
-  always defaults to `insufficient_funds` (cosmetic for the demo).
-- `setupStripeDemo`/seed read `guardrails` with `.maybeSingle()` → would throw if >1 guardrails row exists.
-- `runExceptionAction` recomputes risk without the behavior baseline (manual-action risk is heuristic-only).
-- AI cycle-summary `KpiSchema` omits failedAmount/autoRecoveredPct/humanReviewPct (zod strips them).
-- Demo month resolves to **June** (Stripe trial anchor), not the PRD's "May" — update copy or shift
-  `DEMO_START_UNIX` if the label matters for the pitch.
-
-## ⏳ Pending decision
-
-- **Full-repo `prettier --write`?** Only our changed files were formatted (focused diff). The
-  rest of the repo (Lovable export, `src/components/ui/*`) still has pre-existing prettier
-  violations, so `bun run lint` over the whole tree still reports them. A separate chore commit
-  could zero it out if desired.
+- **Full-repo `prettier --write`?** `endOfLine: "auto"` + formatting of our changed files made
+  them lint-clean, but the rest of the repo (Lovable export, `src/components/ui/*`) still has
+  pre-existing prettier violations, so `bun run lint` over the whole tree still reports them. A
+  separate chore commit could zero it out.
 - **Rotate keys** once convenient — `.env` was tracked in history (`37bb3a1`); the Stripe test
-  secret + Supabase keys should be considered exposed.
+  secret + Supabase keys should be considered exposed. (`.env` is now untracked + gitignored.)
+- **Push / PR?** Work is committed locally on `feature/payment-recovery-agent`; not pushed.
 
-## ✅ Verified working (for context)
-Stripe secret-key auth · `stripe.exe` v1.41.2 · webhook var lookup accepts `STRIPE_WEBHOOK_KEY` ·
-`npx tsc --noEmit` clean · `npx vite build` clean · deterministic agent + card-map/retry-recovery
-fixes · all 4 demo surfaces built.
+## ✅ Resolved this session
+Pipeline enum violations that 500'd the webhook · month-dynamic dashboard + Advance-Month anchor ·
+deterministic recovery agent (risk + behavior-tier floor + policy) with LLM fallback ·
+card map + `recoverInvoiceWithGoodCard` (soft-fails recover, Kaya fails into a plan) ·
+Exception Queue / Activity Log / Tenant Portal built · Dashboard KPIs + closing banner + owner
+preview · seed + accept-plan + queue-action server functions · 7 code-review bug fixes ·
+offline `scripts/verify-agent.ts` (all checks pass) · `.env` untracked + secrets/binary/lockfile
+gitignored · `endOfLine: auto` (lint noise ~6700→clean on our files) · committed `7f6928e` ·
+README.md + DEMO.md synced to the shipped MVP · `tsc` + `vite build` clean.
