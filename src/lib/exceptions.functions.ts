@@ -52,7 +52,8 @@ export const listOpenExceptions = createServerFn({ method: "GET" }).handler(
       recommendedAction: r.recommended_action,
       status: r.status,
       createdAt: r.created_at,
-      riskBreakdown: r.risk_breakdown,
+      riskBreakdown:
+        r.risk_breakdown == null ? null : JSON.stringify(r.risk_breakdown, null, 2),
       tenantName: tenantMap.get(r.tenant_id) ?? "—",
       propertyName: propMap.get(unitMap.get(r.unit_id) ?? "") ?? "—",
     }));
