@@ -165,7 +165,7 @@ async function runDunning(db: any, bodyAsOf?: string): Promise<DunningRunResult>
     .from("payment_events")
     .select("rent_obligation_id")
     .eq("type", "failed")
-    .eq("failure_reason", "chargeback_dispute")
+    .in("failure_reason", ["chargeback_dispute", "insufficient_funds", "invalid_mandate"])
     .in("rent_obligation_id", claimIds.length > 0 ? claimIds : ["__none__"]);
   const sepaChargebackClaims = new Set<string>(
     (chargebacks ?? []).map((e: any) => e.rent_obligation_id),
