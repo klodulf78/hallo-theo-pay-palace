@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TenantPortalRouteImport } from './routes/tenant-portal'
 import { Route as ExceptionsRouteImport } from './routes/exceptions'
+import { Route as DemoFlowRouteImport } from './routes/demo-flow'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
@@ -23,6 +24,11 @@ const TenantPortalRoute = TenantPortalRouteImport.update({
 const ExceptionsRoute = ExceptionsRouteImport.update({
   id: '/exceptions',
   path: '/exceptions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoFlowRoute = DemoFlowRouteImport.update({
+  id: '/demo-flow',
+  path: '/demo-flow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ActivityRoute = ActivityRouteImport.update({
@@ -44,6 +50,7 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
   '/tenant-portal': typeof TenantPortalRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
   '/tenant-portal': typeof TenantPortalRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
@@ -59,6 +67,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
   '/tenant-portal': typeof TenantPortalRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
@@ -68,6 +77,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity'
+    | '/demo-flow'
     | '/exceptions'
     | '/tenant-portal'
     | '/api/public/stripe-webhook'
@@ -75,6 +85,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity'
+    | '/demo-flow'
     | '/exceptions'
     | '/tenant-portal'
     | '/api/public/stripe-webhook'
@@ -82,6 +93,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity'
+    | '/demo-flow'
     | '/exceptions'
     | '/tenant-portal'
     | '/api/public/stripe-webhook'
@@ -90,6 +102,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRoute: typeof ActivityRoute
+  DemoFlowRoute: typeof DemoFlowRoute
   ExceptionsRoute: typeof ExceptionsRoute
   TenantPortalRoute: typeof TenantPortalRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
@@ -109,6 +122,13 @@ declare module '@tanstack/react-router' {
       path: '/exceptions'
       fullPath: '/exceptions'
       preLoaderRoute: typeof ExceptionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo-flow': {
+      id: '/demo-flow'
+      path: '/demo-flow'
+      fullPath: '/demo-flow'
+      preLoaderRoute: typeof DemoFlowRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/activity': {
@@ -138,6 +158,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
+  DemoFlowRoute: DemoFlowRoute,
   ExceptionsRoute: ExceptionsRoute,
   TenantPortalRoute: TenantPortalRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
