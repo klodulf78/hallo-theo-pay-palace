@@ -63,6 +63,18 @@ async function handleEvent(event: Stripe.Event) {
     case "invoice.payment_failed":
       await onInvoiceFailed(event.data.object as Stripe.Invoice);
       break;
+    case "payment_intent.succeeded":
+      await onPaymentIntentSucceeded(
+        event.data.object as Stripe.PaymentIntent,
+        event.id,
+      );
+      break;
+    case "payment_intent.payment_failed":
+      await onPaymentIntentFailed(
+        event.data.object as Stripe.PaymentIntent,
+        event.id,
+      );
+      break;
     case "charge.refunded":
       await onChargeRefunded(event.data.object as Stripe.Charge, event.id);
       break;
@@ -191,6 +203,27 @@ function customerIdFromInvoice(inv: Stripe.Invoice): string | null {
   return typeof inv.customer === "string"
     ? inv.customer
     : (inv.customer?.id ?? null);
+}
+
+function customerIdFromPaymentIntent(pi: Stripe.PaymentIntent): string | null {
+  return typeof pi.customer === "string"
+    ? pi.customer
+    : (pi.customer?.id ?? null);
+}
+
+function failureReasonFromPaymentIntent(pi: Stripe.PaymentIntent): string {
+  const code = pi.last_payment_error?.code ?? pi.last_payment_error?.decline_code;
+  if (code === "insufficient_funds" || code === "invalid_mandate") return code;
+  return "insufficient_funds";
+}
+
+async function eventAlreadyRecorded(eventId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("payment_events")
+    .select("id")
+    .eq("stripe_event_id", eventId)
+    .maybeSingle();
+  return Boolean(data);
 }
 
 /* ----------------------------- handlers ----------------------------- */
