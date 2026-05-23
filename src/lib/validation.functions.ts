@@ -137,17 +137,12 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ triggered: number; skipped: number; errors: string[] }> => {
     const stripe = getStripe();
 
-    const { data: gr } = await supabaseAdmin
-      .from("guardrails")
-      .select("simulated_now")
-      .maybeSingle();
-    const today = gr?.simulated_now
-      ? new Date(gr.simulated_now)
-      : new Date();
+    const simulatedNow = await ensureSimulatedNow();
+    const today = new Date(simulatedNow);
     const year = today.getUTCFullYear();
     const month = today.getUTCMonth(); // 0-indexed
     const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const dueDate = `${monthStr}-01`;
+    const dueDate = firstWorkingDayOfMonth(monthStr);
 
     // Tenants with stripe customer + active mandate
     const { data: tenants, error } = await supabaseAdmin
