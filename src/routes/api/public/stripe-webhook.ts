@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type Stripe from "stripe";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getStripe, getWebhookSecret } from "@/lib/stripe.server";
+import { runPaymentRecoveryAgent } from "@/lib/payment-recovery-agent.server";
 
 export const Route = createFileRoute("/api/public/stripe-webhook")({
   server: {
@@ -230,4 +231,59 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
       risk_score: 50 + attemptCount * 10,
     });
   }
+
+  // Hand off to the AI recovery agent. It re-reads (or upserts) the exception
+  // and overwrites recommended_action / human_needed / status with its decision,
+  // then performs the chosen side effects (retry, plan offer, reminder, escalate).
+  const exceptionId = await ensureExceptionForObligation({
+    obligationId,
+    tenantId: ctx.tenant_id,
+    unitId: ctx.unit_id,
+    attemptCount,
+  });
+  if (exceptionId) {
+    await runPaymentRecoveryAgent({
+      exceptionId,
+      tenantId: ctx.tenant_id,
+      unitId: ctx.unit_id,
+      rentObligationId: obligationId,
+      invoiceId: inv.id ?? null,
+      invoiceAmount: (inv.amount_due ?? 0) / 100,
+      failureReason: reason,
+      attemptCount,
+    });
+  }
+}
+
+async function ensureExceptionForObligation(args: {
+  obligationId: string;
+  tenantId: string;
+  unitId: string;
+  attemptCount: number;
+}): Promise<string | null> {
+  const { data: found } = await supabaseAdmin
+    .from("exceptions")
+    .select("id")
+    .eq("rent_obligation_id", args.obligationId)
+    .maybeSingle();
+  if (found) return found.id;
+
+  // Fallback: prior insert may have failed CHECK; create a schema-valid row so
+  // the agent has something to update.
+  const { data: inserted } = await supabaseAdmin
+    .from("exceptions")
+    .insert({
+      tenant_id: args.tenantId,
+      unit_id: args.unitId,
+      rent_obligation_id: args.obligationId,
+      type: "payment_failed",
+      severity: "medium",
+      status: "open",
+      human_needed: false,
+      recommended_action: "retry",
+      risk_score: 50 + args.attemptCount * 10,
+    })
+    .select("id")
+    .single();
+  return inserted?.id ?? null;
 }
