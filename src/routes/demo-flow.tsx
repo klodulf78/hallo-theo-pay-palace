@@ -1,11 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   UserPlus,
   CreditCard,
   AlertTriangle,
-  ArrowRight,
+  ChevronRight,
+  Clock,
+  Euro,
+  Scale,
+  RotateCw,
+  Zap,
 } from "lucide-react";
 
 export const Route = createFileRoute("/demo-flow")({
@@ -23,76 +29,180 @@ const PHASES = [
     icon: UserPlus,
     title: "1. Mieter aufnehmen",
     subtitle: "Onboarding + SEPA-Mandat",
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-    ring: "ring-blue-200",
+    gradient: "from-blue-50 to-blue-100",
+    badgeBg: "bg-blue-500/10",
+    iconColor: "text-blue-600",
   },
   {
     icon: CreditCard,
     title: "2. SEPA einziehen",
     subtitle: "Lastschrift via Stripe, Webhook meldet Erfolg/Fehler",
-    color: "text-green-600",
-    bg: "bg-green-50",
-    ring: "ring-green-200",
+    gradient: "from-green-50 to-green-100",
+    badgeBg: "bg-green-500/10",
+    iconColor: "text-green-600",
   },
   {
     icon: AlertTriangle,
     title: "3. Automatisch mahnen",
     subtitle: "Stage 1 → 2 → 3 nach Werktag-Fristen",
-    color: "text-red-600",
-    bg: "bg-red-50",
-    ring: "ring-red-200",
+    gradient: "from-red-50 to-red-100",
+    badgeBg: "bg-red-500/10",
+    iconColor: "text-red-600",
   },
 ];
 
 const STAGES = [
-  { label: "0. Pünktlich", color: "bg-slate-300", text: "text-slate-800", h: "h-20" },
-  { label: "1. Mahnung · 14 WT · 5€", color: "bg-yellow-300", text: "text-yellow-900", h: "h-32" },
-  { label: "2. Mahnung · 14 WT · 10€", color: "bg-orange-400", text: "text-orange-950", h: "h-44" },
-  { label: "3. Eskalation · Mensch übernimmt", color: "bg-red-500", text: "text-white", h: "h-56" },
+  {
+    stage: "0",
+    title: "Pünktlich",
+    days: "—",
+    fee: "0 €",
+    cardBg: "bg-slate-100",
+    badgeBg: "bg-slate-200",
+    badgeText: "text-slate-700",
+    titleText: "text-slate-700",
+    metaText: "text-slate-500",
+    border: "border border-slate-200",
+  },
+  {
+    stage: "1",
+    title: "1. Mahnung",
+    days: "14 Werktage",
+    fee: "5 €",
+    cardBg: "bg-amber-50",
+    badgeBg: "bg-amber-200",
+    badgeText: "text-amber-800",
+    titleText: "text-amber-900",
+    metaText: "text-amber-700",
+    border: "border border-amber-200",
+  },
+  {
+    stage: "2",
+    title: "2. Mahnung",
+    days: "14 Werktage",
+    fee: "10 €",
+    cardBg: "bg-orange-100",
+    badgeBg: "bg-orange-300",
+    badgeText: "text-orange-900",
+    titleText: "text-orange-950",
+    metaText: "text-orange-800",
+    border: "border border-orange-300",
+  },
+  {
+    stage: "3",
+    title: "Eskalation",
+    days: "Mensch übernimmt",
+    fee: "Inkasso",
+    cardBg: "bg-red-100",
+    badgeBg: "bg-red-500",
+    badgeText: "text-white",
+    titleText: "text-red-950",
+    metaText: "text-red-800",
+    border: "border-2 border-red-500",
+    emphasized: true,
+  },
 ];
 
 function DemoFlowPage() {
   return (
     <AppShell>
-      <div className="h-[calc(100vh-3.5rem)] flex flex-col px-10 py-8 gap-8 overflow-hidden">
+      <div className="max-w-6xl mx-auto px-8 py-12 space-y-16">
+        {/* Header */}
+        <header className="text-center space-y-3">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Wie hallo flow funktioniert
+          </h1>
+          <p className="text-muted-foreground text-base">
+            Vom Onboarding bis zur Eskalation — eine autonome Pipeline
+          </p>
+        </header>
+
         {/* Section 1: 3-Phasen-Flow */}
-        <section className="flex items-stretch gap-4">
-          {PHASES.map((p, i) => {
-            const Icon = p.icon;
-            return (
-              <div key={p.title} className="flex items-center gap-4 flex-1">
-                <Card className={`flex-1 p-8 ring-1 ${p.ring} ${p.bg} flex flex-col items-center text-center gap-4 shadow-sm`}>
-                  <Icon className={`h-20 w-20 ${p.color}`} strokeWidth={1.5} />
-                  <h2 className="text-2xl font-semibold text-slate-900">{p.title}</h2>
-                  <p className="text-sm text-slate-600 leading-snug">{p.subtitle}</p>
-                </Card>
-                {i < PHASES.length - 1 && (
-                  <ArrowRight className="h-10 w-10 text-slate-400 shrink-0" strokeWidth={2} />
-                )}
-              </div>
-            );
-          })}
+        <section className="space-y-4">
+          <div className="flex flex-col md:flex-row items-stretch gap-6">
+            {PHASES.map((p, i) => {
+              const Icon = p.icon;
+              return (
+                <div key={p.title} className="flex flex-col md:flex-row items-center gap-4 flex-1">
+                  <Card
+                    className={`flex-1 w-full p-8 bg-gradient-to-br ${p.gradient} border shadow-sm hover:shadow-md transition-shadow`}
+                  >
+                    <div className={`rounded-full w-16 h-16 flex items-center justify-center ${p.badgeBg}`}>
+                      <Icon className={`${p.iconColor}`} size={32} strokeWidth={2} />
+                    </div>
+                    <h3 className="text-xl font-semibold mt-4 text-slate-900">{p.title}</h3>
+                    <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                      {p.subtitle}
+                    </p>
+                  </Card>
+                  {i < PHASES.length - 1 && (
+                    <ChevronRight
+                      size={32}
+                      className="text-muted-foreground shrink-0 rotate-90 md:rotate-0"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </section>
 
-        {/* Section 2: Mahnstufen-Treppe */}
-        <section className="flex-1 flex flex-col">
-          <div className="flex items-end gap-4 flex-1 max-h-[340px]">
-            {STAGES.map((s) => (
-              <div key={s.label} className="flex-1 flex flex-col items-center justify-end gap-3">
-                <span className={`text-sm font-medium ${s.text === "text-white" ? "text-slate-900" : "text-slate-700"} text-center`}>
-                  {s.label}
-                </span>
-                <div className={`w-full ${s.h} ${s.color} rounded-t-lg shadow-md`} />
+        {/* Section 2: Mahnstufen-Kaskade */}
+        <section className="space-y-4">
+          <div className="flex flex-col md:flex-row items-stretch gap-3">
+            {STAGES.map((s, i) => (
+              <div key={s.stage} className="flex flex-col md:flex-row items-center gap-2 flex-1">
+                <Card
+                  className={`flex-1 w-full p-5 ${s.cardBg} ${s.border} shadow-sm ${
+                    s.emphasized ? "md:scale-[1.03]" : ""
+                  } transition-transform`}
+                >
+                  <div className="flex flex-col items-center text-center gap-3">
+                    <div
+                      className={`rounded-full w-12 h-12 flex items-center justify-center ${s.badgeBg} ${s.badgeText} font-bold text-lg`}
+                    >
+                      {s.stage}
+                    </div>
+                    <div className={`font-semibold ${s.titleText}`}>{s.title}</div>
+                    <div className={`flex items-center gap-2 text-xs ${s.metaText}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock size={12} />
+                        {s.days}
+                      </span>
+                      <span className="opacity-40">·</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Euro size={12} />
+                        {s.fee}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+                {i < STAGES.length - 1 && (
+                  <div className="hidden md:flex items-center">
+                    <div className="w-3 h-px bg-border" />
+                    <ChevronRight size={18} className="text-muted-foreground" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="text-xs text-slate-500 text-center border-t pt-3">
-          Verzugszinsen nach § 288 BGB · idempotent · SEPA-Rücklastschrift triggert Stufe 1 sofort
-        </footer>
+        {/* Section 3: Info pills */}
+        <section className="flex flex-wrap justify-center gap-3">
+          <Badge variant="secondary" className="gap-2 px-3 py-1.5 text-xs font-normal">
+            <Scale size={14} />
+            Verzugszinsen § 288 BGB
+          </Badge>
+          <Badge variant="secondary" className="gap-2 px-3 py-1.5 text-xs font-normal">
+            <RotateCw size={14} />
+            Idempotent
+          </Badge>
+          <Badge variant="secondary" className="gap-2 px-3 py-1.5 text-xs font-normal">
+            <Zap size={14} />
+            SEPA-Rücklastschrift → sofort Stufe 1
+          </Badge>
+        </section>
       </div>
     </AppShell>
   );
