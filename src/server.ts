@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { runWithEnv, type HalloFlowEnv } from "./lib/server/env";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -66,15 +67,30 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
+function coerceEnv(env: unknown): HalloFlowEnv {
+  const raw = (env ?? {}) as Partial<HalloFlowEnv> & Record<string, unknown>;
+  return {
+    DEMO_MODE: raw.DEMO_MODE === "live" ? "live" : "offline",
+    STRIPE_SECRET_KEY: (raw.STRIPE_SECRET_KEY as string | undefined) ?? "",
+    STRIPE_WEBHOOK_SECRET: (raw.STRIPE_WEBHOOK_SECRET as string | undefined) ?? "",
+    SUPABASE_URL: (raw.SUPABASE_URL as string | undefined) ?? "",
+    SUPABASE_SERVICE_ROLE_KEY: (raw.SUPABASE_SERVICE_ROLE_KEY as string | undefined) ?? "",
+    ANTHROPIC_API_KEY: (raw.ANTHROPIC_API_KEY as string | undefined) ?? "",
+  };
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
-    try {
-      const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
-    } catch (error) {
-      console.error(error);
-      return brandedErrorResponse();
-    }
+    const coercedEnv = coerceEnv(env);
+    return runWithEnv(coercedEnv, async () => {
+      try {
+        const handler = await getServerEntry();
+        const response = await handler.fetch(request, env, ctx);
+        return await normalizeCatastrophicSsrResponse(response);
+      } catch (error) {
+        console.error(error);
+        return brandedErrorResponse();
+      }
+    });
   },
 };

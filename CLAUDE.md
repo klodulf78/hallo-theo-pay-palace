@@ -48,3 +48,34 @@ shadcn/ui (style: `new-york`, base color `slate`, `tsx`) under `src/components/u
 ### `server-only` is banned
 
 ESLint blocks `import "server-only"` — TanStack Start does not use Next.js's package. Mark server modules with the `.server.ts` suffix or `@tanstack/react-start/server-only` instead.
+
+### Two-mode demo: offline vs live
+
+The app is **hallo flow**, a property-manager rent-collection demo. It has two runtime modes selected by env:
+
+- **Offline** (`DEMO_MODE=offline` / `VITE_DEMO_MODE` unset): everything is local. `src/lib/agentEngine.ts` runs a deterministic switch by `archetype`; `src/lib/stripeMock.ts` returns canned `PaymentEvent`s; the store reducer in `src/lib/store.tsx` handles `ADVANCE_MONTH` synchronously. No external calls.
+- **Live** (`DEMO_MODE=live` and `VITE_DEMO_MODE=live`): real Stripe Test Mode (SEPA + Test Clocks), real Supabase Postgres, real Claude tool-use via `@anthropic-ai/sdk`. The reducer's `ADVANCE_MONTH` is a no-op; clicking the button POSTs to `/api/cycle/advance`, which iterates tenants → real PaymentIntents → Stripe webhooks → `runAgentForPaymentEventLlm` → DB writes → Supabase Realtime → store dispatches `LIVE_*` upsert actions.
+
+Both share the same reducer state shape; components don't know which mode they're in.
+
+### Cloudflare env access (server-only)
+
+TanStack Start handlers don't auto-receive Workers `env`. `src/server.ts` wraps the fetch handler in `runWithEnv(env, ...)` which stashes `env` in `AsyncLocalStorage` (available because `nodejs_compat` is on). Any server module gets typed env via `getEnv()` from `src/lib/server/env.ts`. This is the foundation for `src/lib/server/{supabase,stripe,agentLlm,cycle}.ts` — none of them work without it.
+
+### Live-mode wiring (when adding features)
+
+- **API route** for live work: `src/routes/api.<resource>.<verb>.ts` with `createFileRoute(...)({ server: { handlers: { POST: ... } } })`. Read raw body via `await request.text()` before any parsing (needed for Stripe signature verification).
+- **DB writes** → `src/lib/server/cycle.ts` (uses service-role Supabase client from `getServiceClient()`).
+- **Stripe calls** → `src/lib/server/stripe.ts`. `chargeRent` takes an idempotency key keyed by `{tenant_id}_{cycle_month}` so retries are safe.
+- **Agent decisions** → `src/lib/server/agentLlm.ts` calls Claude (model `claude-opus-4-7`) with a tool-use loop. System prompt + tools are cached via `cache_control: {type: "ephemeral"}`. Four tools: `retry_payment`, `send_reminder`, `offer_payment_plan`, `escalate_to_human` — each maps to an executor in `cycle.ts`.
+- **Webhook idempotency** → `stripe_events` table; check before processing, insert on first receipt.
+- **Client realtime** → `src/lib/client/supabase.ts` exposes the browser anon-key client; `HalloFlowProvider` subscribes to `tenants` / `agent_actions` / `exceptions` / `payment_plans` channels when `live` and dispatches `LIVE_UPSERT_*` actions to the reducer.
+
+### Live-mode setup (must run before first live demo)
+
+1. Apply `supabase/migrations/0001_init.sql` and `supabase/seed.sql` to the Supabase project. Realtime is enabled on the relevant tables by the migration.
+2. Copy `.dev.vars.example` → `.dev.vars` and `.env.local.example` → `.env.local`; fill in keys.
+3. `npx tsx scripts/setup-live.ts` — one-shot. Creates Stripe customers, SEPA test mandates (success/decline by archetype), and per-tenant Test Clocks; writes IDs back to Supabase. Idempotent.
+4. `npm run dev` + `stripe listen --forward-to localhost:8080/api/stripe/webhook` in another terminal.
+
+For production: `wrangler secret put STRIPE_SECRET_KEY` etc. (don't commit secrets). `wrangler.jsonc` only declares `DEMO_MODE`.

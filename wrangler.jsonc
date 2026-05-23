@@ -4,4 +4,11 @@
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts",
+  "vars": {
+    "DEMO_MODE": "offline"
+  },
+  // Secrets are set via `wrangler secret put`, not committed:
+  //   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+  //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+  //   ANTHROPIC_API_KEY
 }

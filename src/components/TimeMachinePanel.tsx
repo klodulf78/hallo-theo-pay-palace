@@ -5,7 +5,7 @@ import { CalendarClock, FastForward, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export function TimeMachinePanel() {
-  const { state, advanceMonth, reset } = useHalloFlow();
+  const { state, mode, advanceMonth, reset } = useHalloFlow();
 
   const dateLabel = new Date(state.currentDate).toLocaleDateString("en-US", {
     month: "long",
@@ -41,11 +41,18 @@ export function TimeMachinePanel() {
             +1 Week
           </Button>
           <Button
-            onClick={() => {
-              advanceMonth();
-              toast.success("Monthly rent cycle complete", {
-                description: "Charges run, agent decisions logged, exceptions queued.",
-              });
+            onClick={async () => {
+              if (mode === "live") {
+                toast.info("Charging rent via Stripe…", {
+                  description: "Webhook events will stream in over the next few seconds.",
+                });
+                await advanceMonth();
+              } else {
+                advanceMonth();
+                toast.success("Monthly rent cycle complete", {
+                  description: "Charges run, agent decisions logged, exceptions queued.",
+                });
+              }
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
           >

@@ -12,6 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantKayaRouteImport } from './routes/tenant.kaya'
+import { Route as ApiTenantAcceptPlanRouteImport } from './routes/api.tenant.accept-plan'
+import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
+import { Route as ApiCycleAdvanceRouteImport } from './routes/api.cycle.advance'
 
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
@@ -28,35 +31,81 @@ const TenantKayaRoute = TenantKayaRouteImport.update({
   path: '/tenant/kaya',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTenantAcceptPlanRoute = ApiTenantAcceptPlanRouteImport.update({
+  id: '/api/tenant/accept-plan',
+  path: '/api/tenant/accept-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
+  id: '/api/stripe/webhook',
+  path: '/api/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCycleAdvanceRoute = ApiCycleAdvanceRouteImport.update({
+  id: '/api/cycle/advance',
+  path: '/api/cycle/advance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/tenant/kaya': typeof TenantKayaRoute
+  '/api/cycle/advance': typeof ApiCycleAdvanceRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/tenant/accept-plan': typeof ApiTenantAcceptPlanRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/tenant/kaya': typeof TenantKayaRoute
+  '/api/cycle/advance': typeof ApiCycleAdvanceRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/tenant/accept-plan': typeof ApiTenantAcceptPlanRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/tenant/kaya': typeof TenantKayaRoute
+  '/api/cycle/advance': typeof ApiCycleAdvanceRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/tenant/accept-plan': typeof ApiTenantAcceptPlanRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/tenant/kaya'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/tenant/kaya'
+    | '/api/cycle/advance'
+    | '/api/stripe/webhook'
+    | '/api/tenant/accept-plan'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/tenant/kaya'
-  id: '__root__' | '/' | '/admin' | '/tenant/kaya'
+  to:
+    | '/'
+    | '/admin'
+    | '/tenant/kaya'
+    | '/api/cycle/advance'
+    | '/api/stripe/webhook'
+    | '/api/tenant/accept-plan'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/tenant/kaya'
+    | '/api/cycle/advance'
+    | '/api/stripe/webhook'
+    | '/api/tenant/accept-plan'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   TenantKayaRoute: typeof TenantKayaRoute
+  ApiCycleAdvanceRoute: typeof ApiCycleAdvanceRoute
+  ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  ApiTenantAcceptPlanRoute: typeof ApiTenantAcceptPlanRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +131,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantKayaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tenant/accept-plan': {
+      id: '/api/tenant/accept-plan'
+      path: '/api/tenant/accept-plan'
+      fullPath: '/api/tenant/accept-plan'
+      preLoaderRoute: typeof ApiTenantAcceptPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stripe/webhook': {
+      id: '/api/stripe/webhook'
+      path: '/api/stripe/webhook'
+      fullPath: '/api/stripe/webhook'
+      preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cycle/advance': {
+      id: '/api/cycle/advance'
+      path: '/api/cycle/advance'
+      fullPath: '/api/cycle/advance'
+      preLoaderRoute: typeof ApiCycleAdvanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +159,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   TenantKayaRoute: TenantKayaRoute,
+  ApiCycleAdvanceRoute: ApiCycleAdvanceRoute,
+  ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  ApiTenantAcceptPlanRoute: ApiTenantAcceptPlanRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
