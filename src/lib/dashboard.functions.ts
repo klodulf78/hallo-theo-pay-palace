@@ -19,53 +19,43 @@ export type DashboardKpis = {
   supportTickets: number;
 };
 
+const num = (v: unknown) => (v == null ? 0 : Number(v));
+
 export const getDashboardKpis = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardKpis> => {
     const month = "2026-05";
-    const { data, error } = await supabaseAdmin
-      .from("rent_obligations")
-      .select("amount, status")
-      .eq("month", month);
 
-    if (error) throw new Error(error.message);
+    const [{ data: kpi, error: kpiErr }, { data: rows, error: rowsErr }] =
+      await Promise.all([
+        supabaseAdmin.from("portfolio_kpis").select("*").maybeSingle(),
+        supabaseAdmin
+          .from("rent_obligations")
+          .select("status")
+          .eq("month", month),
+      ]);
 
-    const rows = data ?? [];
-    const sum = (pred: (r: { status: string }) => boolean) =>
-      rows
-        .filter(pred)
-        .reduce((acc, r) => acc + Number(r.amount), 0);
-    const count = (pred: (r: { status: string }) => boolean) =>
-      rows.filter(pred).length;
+    if (kpiErr) throw new Error(kpiErr.message);
+    if (rowsErr) throw new Error(rowsErr.message);
 
-    const expected = rows.reduce((acc, r) => acc + Number(r.amount), 0);
-    const collected = sum((r) => r.status === "paid");
-    const recovered = sum((r) => r.status === "auto_recovered");
-    const paymentPlan = sum((r) => r.status === "payment_plan");
-    const humanReview = sum((r) => r.status === "human_review");
-
-    const autoCleared = count(
-      (r) =>
-        r.status === "paid" ||
-        r.status === "auto_recovered" ||
-        r.status === "payment_plan",
-    );
-    const total = rows.length;
-    const autoClearedPct =
-      total > 0 ? Math.round((autoCleared / total) * 100) : 0;
+    const all = rows ?? [];
+    const cnt = (s: string) => all.filter((r) => r.status === s).length;
+    const total = all.length;
+    const autoCleared =
+      cnt("paid") + cnt("reconciled") + cnt("auto_recovered") + cnt("payment_plan");
 
     return {
       month,
-      tenantCount: total,
-      expected,
-      collected,
-      collectedCount: count((r) => r.status === "paid"),
-      recovered,
-      recoveredCount: count((r) => r.status === "auto_recovered"),
-      paymentPlan,
-      paymentPlanCount: count((r) => r.status === "payment_plan"),
-      humanReview,
-      humanReviewCount: count((r) => r.status === "human_review"),
-      autoClearedPct,
+      tenantCount: num(kpi?.unit_count) || total,
+      expected: num(kpi?.expected_rent),
+      collected: num(kpi?.collected),
+      collectedCount: cnt("paid") + cnt("reconciled"),
+      recovered: num(kpi?.recovered_by_agent),
+      recoveredCount: cnt("auto_recovered"),
+      paymentPlan: num(kpi?.in_payment_plan),
+      paymentPlanCount: cnt("payment_plan"),
+      humanReview: num(kpi?.needs_human_review),
+      humanReviewCount: cnt("human_review"),
+      autoClearedPct: num(kpi?.auto_cleared_rate),
       autoClearedNumerator: autoCleared,
       autoClearedDenominator: total,
       supportTickets: 0,
