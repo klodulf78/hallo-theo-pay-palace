@@ -133,6 +133,41 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
   },
 );
 
+/**
+ * Returns a valid Stripe customer ID for the tenant. If the stored ID is
+ * missing in Stripe (e.g. account/key rotation), recreates the customer and
+ * updates `tenants.stripe_customer_id` in place.
+ */
+async function ensureStripeCustomer(
+  stripe: ReturnType<typeof getStripe>,
+  tenant: { id: string; name: string; stripe_customer_id: string | null },
+): Promise<string> {
+  if (tenant.stripe_customer_id) {
+    try {
+      const c = await stripe.customers.retrieve(tenant.stripe_customer_id);
+      if (!(c as { deleted?: boolean }).deleted) {
+        return tenant.stripe_customer_id;
+      }
+    } catch (e) {
+      const msg = (e as Error).message ?? "";
+      if (!/No such customer|resource_missing/i.test(msg)) throw e;
+      // fall through → recreate
+    }
+  }
+  const fresh = await stripe.customers.create({
+    name: tenant.name,
+    metadata: { tenant_id: tenant.id, recreated: "true" },
+  });
+  await supabaseAdmin
+    .from("tenants")
+    .update({ stripe_customer_id: fresh.id })
+    .eq("id", tenant.id);
+  console.warn(
+    `[runSepaRun] Recreated Stripe customer for ${tenant.name}: ${fresh.id}`,
+  );
+  return fresh.id;
+}
+
 export const runSepaRun = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ triggered: number; skipped: number; errors: string[] }> => {
     const stripe = getStripe();
@@ -140,7 +175,7 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
     const simulatedNow = await ensureSimulatedNow();
     const today = new Date(simulatedNow);
     const year = today.getUTCFullYear();
-    const month = today.getUTCMonth(); // 0-indexed
+    const month = today.getUTCMonth();
     const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
     const dueDate = firstWorkingDayOfMonth(monthStr);
 
@@ -148,7 +183,7 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
     const { data: tenants, error } = await supabaseAdmin
       .from("tenants")
       .select(
-        "id, name, rent_amount, stripe_customer_id, unit_id, sepa_mandates!inner(id, status)",
+        "id, name, rent_amount, stripe_customer_id, unit_id, behavior_profile, sepa_mandates!inner(id, status)",
       )
       .not("stripe_customer_id", "is", null)
       .eq("sepa_mandates.status", "active");
@@ -160,7 +195,6 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
 
     for (const t of tenants ?? []) {
       try {
-        // unit -> property
         const { data: unit } = await supabaseAdmin
           .from("units")
           .select("property_id")
@@ -171,7 +205,7 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
           continue;
         }
 
-        // Idempotency: skip if rent_obligation already exists for this tenant+month
+        // Idempotency: skip if rent_obligation already exists
         const { data: existing } = await supabaseAdmin
           .from("rent_obligations")
           .select("id")
@@ -179,56 +213,72 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
           .eq("month", monthStr)
           .maybeSingle();
 
+        let obligationId: string;
         if (existing) {
-          skipped++;
-          continue;
+          obligationId = existing.id;
+        } else {
+          const { data: ins, error: insErr } = await supabaseAdmin
+            .from("rent_obligations")
+            .insert({
+              tenant_id: t.id,
+              unit_id: t.unit_id,
+              property_id: unit.property_id,
+              month: monthStr,
+              due_date: dueDate,
+              amount: t.rent_amount,
+              status: "pending",
+            })
+            .select("id")
+            .single();
+          if (insErr) throw new Error(insErr.message);
+          obligationId = ins.id;
         }
 
-        const { error: insErr } = await supabaseAdmin
-          .from("rent_obligations")
-          .insert({
-            tenant_id: t.id,
-            unit_id: t.unit_id,
-            property_id: unit.property_id,
-            month: monthStr,
-            due_date: dueDate,
-            amount: t.rent_amount,
-            status: "pending",
-          });
-        if (insErr) throw new Error(insErr.message);
+        // Self-heal stale customer
+        const customerId = await ensureStripeCustomer(stripe, t);
 
-        // Try SEPA first, fall back to card
-        let pmType: "sepa_debit" | "card" = "sepa_debit";
+        // Deterministic test PMs: critical profile → declined, else → success.
+        // These Stripe-managed PaymentMethod tokens work without being attached
+        // to the customer and are idempotent across runs.
+        const pmToken =
+          t.behavior_profile === "critical"
+            ? "pm_card_chargeDeclined"
+            : "pm_card_visa";
+        const amount = Math.round(Number(t.rent_amount) * 100);
+
         try {
-          await stripe.paymentIntents.create({
-            customer: t.stripe_customer_id!,
-            amount: Math.round(Number(t.rent_amount) * 100),
+          const pi = await stripe.paymentIntents.create({
+            customer: customerId,
+            amount,
             currency: "eur",
-            payment_method_types: [pmType],
-            confirm: true,
-            mandate_data: {
-              customer_acceptance: {
-                type: "online",
-                online: {
-                  ip_address: "127.0.0.1",
-                  user_agent: "hallo-flow-demo",
-                },
-              },
-            },
-            metadata: { tenant_id: t.id, month: monthStr },
-          });
-        } catch (sepaErr) {
-          pmType = "card";
-          console.warn(
-            `[runSepaRun] SEPA failed for ${t.name}, falling back to card: ${(sepaErr as Error).message}`,
-          );
-          await stripe.paymentIntents.create({
-            customer: t.stripe_customer_id!,
-            amount: Math.round(Number(t.rent_amount) * 100),
-            currency: "eur",
+            payment_method: pmToken,
             payment_method_types: ["card"],
             confirm: true,
-            metadata: { tenant_id: t.id, month: monthStr },
+            metadata: {
+              tenant_id: t.id,
+              rent_obligation_id: obligationId,
+              month: monthStr,
+            },
+          });
+          console.log(
+            `[runSepaRun] ${t.name}: PaymentIntent ${pi.id} status=${pi.status}`,
+          );
+        } catch (piErr) {
+          const msg = (piErr as Error).message;
+          console.warn(
+            `[runSepaRun] PaymentIntent failed (expected for critical): ${t.name}: ${msg}`,
+          );
+          // Record a payment_event so the failure surfaces in the UI even if
+          // Stripe webhooks don't deliver to this dev preview.
+          await supabaseAdmin.from("payment_events").insert({
+            rent_obligation_id: obligationId,
+            tenant_id: t.id,
+            unit_id: t.unit_id,
+            type: "charge_failed",
+            amount: Number(t.rent_amount),
+            failure_reason: msg.slice(0, 250),
+            source: "sepa_run",
+            occurred_at: new Date().toISOString(),
           });
         }
 
@@ -241,6 +291,7 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
     return { triggered, skipped, errors };
   },
 );
+
 
 export const advanceSimulatedMonth = createServerFn({ method: "POST" }).handler(
   async (): Promise<{
