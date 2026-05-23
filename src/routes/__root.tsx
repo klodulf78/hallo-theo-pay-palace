@@ -8,6 +8,8 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 
+import { Toaster } from "sonner";
+
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/app-shell";
 
@@ -119,6 +121,7 @@ function RootComponent() {
       <AppShell>
         <Outlet />
       </AppShell>
+      <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );
 }
