@@ -120,6 +120,60 @@ export type Database = {
           },
         ]
       }
+      dunning_notices: {
+        Row: {
+          created_at: string
+          deadline_date: string
+          default_interest_snapshot: number
+          id: string
+          issued_date: string
+          mahngebuehr: number
+          rent_obligation_id: string
+          stage: number
+          tenant_id: string
+          verzugsnachweis: Json
+        }
+        Insert: {
+          created_at?: string
+          deadline_date: string
+          default_interest_snapshot?: number
+          id?: string
+          issued_date: string
+          mahngebuehr?: number
+          rent_obligation_id: string
+          stage: number
+          tenant_id: string
+          verzugsnachweis: Json
+        }
+        Update: {
+          created_at?: string
+          deadline_date?: string
+          default_interest_snapshot?: number
+          id?: string
+          issued_date?: string
+          mahngebuehr?: number
+          rent_obligation_id?: string
+          stage?: number
+          tenant_id?: string
+          verzugsnachweis?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dunning_notices_rent_obligation_id_fkey"
+            columns: ["rent_obligation_id"]
+            isOneToOne: false
+            referencedRelation: "rent_obligations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_notices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exceptions: {
         Row: {
           created_at: string
@@ -189,34 +243,64 @@ export type Database = {
       }
       guardrails: {
         Row: {
+          basiszinssatz: number
           critical_risk_threshold: number | null
+          default_due_working_day: number
+          default_grace_working_days: number
+          default_interest_surcharge: number
+          dunning_stage1_deadline_working_days: number
+          dunning_stage1_fee: number
+          dunning_stage2_deadline_working_days: number
+          dunning_stage2_fee: number
+          dunning_stage3_arrears_threshold: number
           escalation_rules: Json | null
           id: string
           max_auto_plan_amount: number | null
           max_installments: number | null
           max_retry_attempts: number | null
+          sepa_chargeback_fee: number
           simulated_now: string | null
           stripe_test_clock_id: string | null
           updated_at: string
         }
         Insert: {
+          basiszinssatz?: number
           critical_risk_threshold?: number | null
+          default_due_working_day?: number
+          default_grace_working_days?: number
+          default_interest_surcharge?: number
+          dunning_stage1_deadline_working_days?: number
+          dunning_stage1_fee?: number
+          dunning_stage2_deadline_working_days?: number
+          dunning_stage2_fee?: number
+          dunning_stage3_arrears_threshold?: number
           escalation_rules?: Json | null
           id?: string
           max_auto_plan_amount?: number | null
           max_installments?: number | null
           max_retry_attempts?: number | null
+          sepa_chargeback_fee?: number
           simulated_now?: string | null
           stripe_test_clock_id?: string | null
           updated_at?: string
         }
         Update: {
+          basiszinssatz?: number
           critical_risk_threshold?: number | null
+          default_due_working_day?: number
+          default_grace_working_days?: number
+          default_interest_surcharge?: number
+          dunning_stage1_deadline_working_days?: number
+          dunning_stage1_fee?: number
+          dunning_stage2_deadline_working_days?: number
+          dunning_stage2_fee?: number
+          dunning_stage3_arrears_threshold?: number
           escalation_rules?: Json | null
           id?: string
           max_auto_plan_amount?: number | null
           max_installments?: number | null
           max_retry_attempts?: number | null
+          sepa_chargeback_fee?: number
           simulated_now?: string | null
           stripe_test_clock_id?: string | null
           updated_at?: string
@@ -494,9 +578,13 @@ export type Database = {
       }
       rent_obligations: {
         Row: {
+          accrued_default_interest: number
+          accrued_dunning_fees: number
           amount: number
           created_at: string
+          default_since: string | null
           due_date: string
+          dunning_stage: number
           id: string
           month: string
           property_id: string
@@ -506,9 +594,13 @@ export type Database = {
           unit_id: string
         }
         Insert: {
+          accrued_default_interest?: number
+          accrued_dunning_fees?: number
           amount: number
           created_at?: string
+          default_since?: string | null
           due_date: string
+          dunning_stage?: number
           id?: string
           month: string
           property_id: string
@@ -518,9 +610,13 @@ export type Database = {
           unit_id: string
         }
         Update: {
+          accrued_default_interest?: number
+          accrued_dunning_fees?: number
           amount?: number
           created_at?: string
+          default_since?: string | null
           due_date?: string
+          dunning_stage?: number
           id?: string
           month?: string
           property_id?: string
