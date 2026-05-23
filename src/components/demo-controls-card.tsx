@@ -5,16 +5,13 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { addTenant } from "@/lib/add-tenant.functions";
-import { runSepaRun } from "@/lib/validation.functions";
-import { advanceMonth, useAdvancing } from "@/lib/cycle-store";
-import { advanceStripeMonth } from "@/lib/stripe.functions";
+import { runSepaRun, advanceSimulatedMonth } from "@/lib/validation.functions";
 
 export function DemoControlsCard() {
   const qc = useQueryClient();
   const addTenantFn = useServerFn(addTenant);
   const sepaFn = useServerFn(runSepaRun);
-  const advanceFn = useServerFn(advanceStripeMonth);
-  const advancing = useAdvancing();
+  const advanceFn = useServerFn(advanceSimulatedMonth);
 
   const addM = useMutation({
     mutationFn: () => addTenantFn(),
@@ -47,11 +44,7 @@ export function DemoControlsCard() {
   });
 
   const monthM = useMutation({
-    mutationFn: async () => {
-      await advanceMonth();
-      // Re-fetch the message from the underlying fn for the toast
-      return advanceFn();
-    },
+    mutationFn: () => advanceFn(),
     onSuccess: (d) => {
       toast.success(d.message, {
         description: d.dunning?.stages_issued
@@ -60,6 +53,8 @@ export function DemoControlsCard() {
       });
       qc.invalidateQueries();
     },
+    onError: (e: Error) =>
+      toast.error("Monat simulieren fehlgeschlagen", { description: e.message }),
   });
 
   return (
@@ -78,16 +73,16 @@ export function DemoControlsCard() {
           onClick={() => addM.mutate()}
         />
         <BigButton
-          icon={<Calendar className="h-5 w-5" />}
-          label="Monat simulieren"
-          loading={advancing || monthM.isPending}
-          onClick={() => monthM.mutate()}
-        />
-        <BigButton
           icon={<CreditCard className="h-5 w-5" />}
           label="SEPA-Lauf starten"
           loading={sepaM.isPending}
           onClick={() => sepaM.mutate()}
+        />
+        <BigButton
+          icon={<Calendar className="h-5 w-5" />}
+          label="Monat simulieren"
+          loading={monthM.isPending}
+          onClick={() => monthM.mutate()}
         />
       </div>
     </Card>

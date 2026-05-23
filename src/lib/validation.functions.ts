@@ -21,10 +21,52 @@ export type ValidationState = {
   }>;
 };
 
+const DEMO_ANCHOR_DATE = "2026-05-01";
+
+/** First working day (Mon–Fri) on or after the 1st of `monthStr` (YYYY-MM). */
+function firstWorkingDayOfMonth(monthStr: string): string {
+  const [y, m] = monthStr.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1, 1));
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) {
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+/** Adds exactly 1 calendar month to a YYYY-MM-DD date (UTC), clamping the day. */
+function addOneMonth(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m, d)); // m is 1-based → m as index = next month
+  if (next.getUTCMonth() !== m % 12) {
+    next.setUTCDate(0); // overflow → last day of intended month
+  }
+  return next.toISOString().slice(0, 10);
+}
+
+/** Ensures guardrails has simulated_now; initializes to the demo anchor on first read. */
+async function ensureSimulatedNow(): Promise<string> {
+  const { data: gr } = await supabaseAdmin
+    .from("guardrails")
+    .select("id, simulated_now")
+    .maybeSingle();
+  if (gr?.simulated_now) return gr.simulated_now as string;
+  if (gr?.id) {
+    await supabaseAdmin
+      .from("guardrails")
+      .update({ simulated_now: DEMO_ANCHOR_DATE })
+      .eq("id", gr.id);
+  } else {
+    await supabaseAdmin
+      .from("guardrails")
+      .insert({ simulated_now: DEMO_ANCHOR_DATE });
+  }
+  return DEMO_ANCHOR_DATE;
+}
+
 export const getValidationState = createServerFn({ method: "GET" }).handler(
   async (): Promise<ValidationState> => {
+    const simulatedNow = await ensureSimulatedNow();
     const [
-      { data: gr },
       tenants,
       obligations,
       events,
@@ -32,7 +74,6 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
       dunning,
       dunningRows,
     ] = await Promise.all([
-      supabaseAdmin.from("guardrails").select("simulated_now").maybeSingle(),
       supabaseAdmin.from("tenants").select("id", { count: "exact", head: true }),
       supabaseAdmin
         .from("rent_obligations")
@@ -79,7 +120,7 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
     }
 
     return {
-      simulatedNow: gr?.simulated_now ?? null,
+      simulatedNow,
       counts: {
         tenants: tenants.count ?? 0,
         rent_obligations: obligations.count ?? 0,
@@ -96,17 +137,12 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ triggered: number; skipped: number; errors: string[] }> => {
     const stripe = getStripe();
 
-    const { data: gr } = await supabaseAdmin
-      .from("guardrails")
-      .select("simulated_now")
-      .maybeSingle();
-    const today = gr?.simulated_now
-      ? new Date(gr.simulated_now)
-      : new Date();
+    const simulatedNow = await ensureSimulatedNow();
+    const today = new Date(simulatedNow);
     const year = today.getUTCFullYear();
     const month = today.getUTCMonth(); // 0-indexed
     const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const dueDate = `${monthStr}-01`;
+    const dueDate = firstWorkingDayOfMonth(monthStr);
 
     // Tenants with stripe customer + active mandate
     const { data: tenants, error } = await supabaseAdmin
@@ -203,5 +239,67 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
     }
 
     return { triggered, skipped, errors };
+  },
+);
+
+export const advanceSimulatedMonth = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{
+    from: string;
+    to: string;
+    message: string;
+    stripeAdvanced: boolean;
+    dunning: { stages_issued?: number; error?: string } | null;
+  }> => {
+    const from = await ensureSimulatedNow();
+    const to = addOneMonth(from);
+
+    const { data: gr } = await supabaseAdmin
+      .from("guardrails")
+      .select("id, stripe_test_clock_id")
+      .maybeSingle();
+    if (gr?.id) {
+      await supabaseAdmin
+        .from("guardrails")
+        .update({ simulated_now: to })
+        .eq("id", gr.id);
+    }
+
+    // Best-effort: nudge the Stripe test clock to the new simulated date so
+    // subscription invoices align with the demo timeline.
+    let stripeAdvanced = false;
+    if (gr?.stripe_test_clock_id) {
+      try {
+        const stripe = getStripe();
+        const frozen = Math.floor(new Date(to + "T08:00:00Z").getTime() / 1000);
+        await stripe.testHelpers.testClocks.advance(gr.stripe_test_clock_id, {
+          frozen_time: frozen,
+        });
+        stripeAdvanced = true;
+      } catch (e) {
+        console.warn(
+          `[advanceSimulatedMonth] stripe advance failed: ${(e as Error).message}`,
+        );
+      }
+    }
+
+    // Trigger dunning engine for the new "today".
+    let dunning: { stages_issued?: number; error?: string } | null = null;
+    try {
+      const { data, error } = await supabaseAdmin.functions.invoke<{
+        stages_issued?: number;
+      }>("run-dunning", { body: { as_of: to } });
+      if (error) dunning = { error: error.message };
+      else dunning = data ?? null;
+    } catch (e) {
+      dunning = { error: (e as Error).message };
+    }
+
+    return {
+      from,
+      to,
+      message: `Demo-Datum: ${from} → ${to}`,
+      stripeAdvanced,
+      dunning,
+    };
   },
 );
