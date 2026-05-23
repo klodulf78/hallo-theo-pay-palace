@@ -117,11 +117,12 @@ function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Payment Health — May 2026
+            Payment Health{k?.month ? ` — ${k.month}` : ""}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Autonomous rent cycle overview. Only true exceptions need your attention.
           </p>
+
         </div>
         <div className="rounded-md border border-border bg-card px-4 py-2 text-sm shadow-sm">
           <span className="font-semibold text-[var(--status-paid)]">
