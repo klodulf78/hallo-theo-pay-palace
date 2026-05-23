@@ -14,7 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      properties: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          name: string
+          owner_name: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          owner_name?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          owner_name?: string | null
+        }
+        Relationships: []
+      }
+      rent_obligations: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string
+          id: string
+          month: string
+          property_id: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date: string
+          id?: string
+          month: string
+          property_id: string
+          status: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          month?: string
+          property_id?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_obligations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_obligations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          behavior_profile: string
+          created_at: string
+          email: string | null
+          id: string
+          mandate_status: string
+          name: string
+          property_id: string
+          rent_amount: number
+          risk_score: number
+          unit: string
+        }
+        Insert: {
+          behavior_profile: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          mandate_status?: string
+          name: string
+          property_id: string
+          rent_amount: number
+          risk_score?: number
+          unit: string
+        }
+        Update: {
+          behavior_profile?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          mandate_status?: string
+          name?: string
+          property_id?: string
+          rent_amount?: number
+          risk_score?: number
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenants_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
