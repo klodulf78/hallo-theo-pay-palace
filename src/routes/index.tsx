@@ -225,6 +225,9 @@ function Dashboard() {
           loading={loading}
         />
       </div>
+
+      <RecentEventsCard />
     </div>
   );
 }
+
