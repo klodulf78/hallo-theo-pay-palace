@@ -168,6 +168,15 @@ async function ensureStripeCustomer(
   return fresh.id;
 }
 
+async function obligationHasPaymentEvent(obligationId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("payment_events")
+    .select("id")
+    .eq("rent_obligation_id", obligationId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 export const runSepaRun = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ triggered: number; skipped: number; errors: string[] }> => {
     const stripe = getStripe();
@@ -263,6 +272,28 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
           console.log(
             `[runSepaRun] ${t.name}: PaymentIntent ${pi.id} status=${pi.status}`,
           );
+          if (pi.status === "succeeded" && !(await obligationHasPaymentEvent(obligationId))) {
+            await supabaseAdmin.from("payment_events").insert({
+              rent_obligation_id: obligationId,
+              tenant_id: t.id,
+              unit_id: t.unit_id,
+              type: "succeeded",
+              amount: Number(t.rent_amount),
+              source: "simulation",
+              stripe_event_id: pi.id,
+              occurred_at: new Date(pi.created * 1000).toISOString(),
+            });
+            await supabaseAdmin
+              .from("rent_obligations")
+              .update({
+                status: "paid",
+                dunning_stage: 0,
+                default_since: null,
+                accrued_dunning_fees: 0,
+                accrued_default_interest: 0,
+              })
+              .eq("id", obligationId);
+          }
         } catch (piErr) {
           const msg = (piErr as Error).message;
           console.warn(
