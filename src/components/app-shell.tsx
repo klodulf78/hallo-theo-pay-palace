@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({
     select: (s) => s.location.pathname,
   });
-  const advancing = useAdvancing();
+  
 
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground">
