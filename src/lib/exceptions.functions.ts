@@ -8,7 +8,7 @@ export type ExceptionRow = {
   recommendedAction: string | null;
   createdAt: string;
   status: string | null;
-  riskBreakdown: unknown;
+  riskBreakdown: Record<string, unknown> | null;
   tenantName: string;
   propertyName: string;
 };
