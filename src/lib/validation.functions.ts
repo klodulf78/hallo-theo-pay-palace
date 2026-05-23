@@ -130,6 +130,10 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
           .select("property_id")
           .eq("id", t.unit_id)
           .maybeSingle();
+        if (!unit?.property_id) {
+          skipped++;
+          continue;
+        }
 
         // Idempotency: skip if rent_obligation already exists for this tenant+month
         const { data: existing } = await supabaseAdmin
@@ -149,7 +153,7 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
           .insert({
             tenant_id: t.id,
             unit_id: t.unit_id,
-            property_id: unit?.property_id ?? null,
+            property_id: unit.property_id,
             month: monthStr,
             due_date: dueDate,
             amount: t.rent_amount,
