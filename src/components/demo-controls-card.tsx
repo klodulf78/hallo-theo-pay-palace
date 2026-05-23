@@ -28,10 +28,15 @@ export function DemoControlsCard() {
   const sepaM = useMutation({
     mutationFn: () => sepaFn(),
     onSuccess: (d) => {
-      toast.success(`SEPA-Lauf gestartet: ${d.triggered} Buchungen ausgelöst`, {
-        description:
-          d.skipped > 0 ? `${d.skipped} übersprungen (bereits vorhanden)` : undefined,
-      });
+      toast.success(
+        `SEPA-Lauf: ${d.triggered} Buchungen · ${d.succeeded} ok · ${d.failed} fehlgeschlagen`,
+        {
+          description:
+            d.skipped > 0
+              ? `${d.skipped} übersprungen (bereits verbucht)`
+              : undefined,
+        },
+      );
       if (d.errors.length > 0) {
         toast.error(`${d.errors.length} Fehler im SEPA-Lauf`, {
           description: d.errors.slice(0, 2).join(" · "),
@@ -47,9 +52,7 @@ export function DemoControlsCard() {
     mutationFn: () => advanceFn(),
     onSuccess: (d) => {
       toast.success(d.message, {
-        description: d.dunning?.stages_issued
-          ? `${d.dunning.stages_issued} Mahnstufe(n) ausgelöst`
-          : undefined,
+        description: d.dunning?.error ? `Dunning: ${d.dunning.error}` : undefined,
       });
       qc.invalidateQueries();
     },
