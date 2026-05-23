@@ -689,6 +689,7 @@ export type Database = {
           expected_rent: number | null
           human_review_rate: number | null
           in_payment_plan: number | null
+          month: string | null
           needs_human_review: number | null
           recovered_by_agent: number | null
           unit_count: number | null

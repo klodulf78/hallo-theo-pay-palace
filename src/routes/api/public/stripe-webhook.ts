@@ -42,6 +42,20 @@ export const Route = createFileRoute("/api/public/stripe-webhook")({
 
 async function handleEvent(event: Stripe.Event) {
   switch (event.type) {
+    case "customer.created":
+    case "customer.updated":
+      await onCustomerUpsert(event.data.object as Stripe.Customer);
+      break;
+    case "customer.subscription.created":
+    case "customer.subscription.updated":
+      await onSubscriptionUpsert(event.data.object as Stripe.Subscription);
+      break;
+    case "customer.subscription.deleted":
+      await onSubscriptionDeleted(event.data.object as Stripe.Subscription);
+      break;
+    case "invoice.created":
+      await upsertObligationFromInvoice(event.data.object as Stripe.Invoice);
+      break;
     case "invoice.paid":
     case "invoice.payment_succeeded":
       await onInvoicePaid(event.data.object as Stripe.Invoice);
@@ -49,13 +63,51 @@ async function handleEvent(event: Stripe.Event) {
     case "invoice.payment_failed":
       await onInvoiceFailed(event.data.object as Stripe.Invoice);
       break;
-    case "invoice.created":
-      await upsertObligationFromInvoice(event.data.object as Stripe.Invoice);
+    case "charge.refunded":
+      await onChargeRefunded(event.data.object as Stripe.Charge, event.id);
       break;
     default:
-      // ignore other events for the demo
       break;
   }
+}
+
+/* ----------------------------- helpers ----------------------------- */
+
+const DEFAULT_PROPERTY_NAME = "Stripe Webhook Imports";
+
+async function ensureDefaultProperty(): Promise<string> {
+  const { data: existing } = await supabaseAdmin
+    .from("properties")
+    .select("id")
+    .eq("name", DEFAULT_PROPERTY_NAME)
+    .maybeSingle();
+  if (existing) return existing.id;
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from("properties")
+    .insert({ name: DEFAULT_PROPERTY_NAME, city: "Berlin" })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return inserted.id;
+}
+
+async function ensureUnitFor(propertyId: string, label: string): Promise<string> {
+  const { data: existing } = await supabaseAdmin
+    .from("units")
+    .select("id")
+    .eq("property_id", propertyId)
+    .eq("label", label)
+    .maybeSingle();
+  if (existing) return existing.id;
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from("units")
+    .insert({ property_id: propertyId, label })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return inserted.id;
 }
 
 type TenantCtx = {
@@ -64,24 +116,63 @@ type TenantCtx = {
   property_id: string;
 };
 
-async function resolveTenantCtx(
+/**
+ * Lookup tenant by stripe_customer_id. If missing, auto-provision tenant +
+ * unit + default property from the Stripe customer record.
+ */
+async function ensureTenantCtx(
   customerId: string | null,
 ): Promise<TenantCtx | null> {
   if (!customerId) return null;
-  const { data: tenant } = await supabaseAdmin
+
+  const { data: existing } = await supabaseAdmin
     .from("tenants")
     .select("id, unit_id, units!inner(property_id)")
     .eq("stripe_customer_id", customerId)
     .maybeSingle();
-  if (!tenant) return null;
-  // supabase typing for inner join returns array — normalize
-  const unit = Array.isArray((tenant as { units: unknown }).units)
-    ? (tenant as unknown as { units: { property_id: string }[] }).units[0]
-    : (tenant as unknown as { units: { property_id: string } }).units;
+
+  if (existing) {
+    const unit = Array.isArray((existing as { units: unknown }).units)
+      ? (existing as unknown as { units: { property_id: string }[] }).units[0]
+      : (existing as unknown as { units: { property_id: string } }).units;
+    return {
+      tenant_id: existing.id,
+      unit_id: existing.unit_id,
+      property_id: unit.property_id,
+    };
+  }
+
+  // Fetch the customer from Stripe so we have name/email
+  const stripe = getStripe();
+  const customer = (await stripe.customers.retrieve(customerId)) as Stripe.Customer;
+  return provisionTenantFromCustomer(customer);
+}
+
+async function provisionTenantFromCustomer(
+  customer: Stripe.Customer,
+): Promise<TenantCtx> {
+  const propertyId = await ensureDefaultProperty();
+  const label =
+    customer.name ?? customer.email ?? `Tenant ${customer.id.slice(-6)}`;
+  const unitId = await ensureUnitFor(propertyId, label);
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from("tenants")
+    .insert({
+      name: customer.name ?? customer.email ?? `Tenant ${customer.id.slice(-6)}`,
+      email: customer.email ?? null,
+      unit_id: unitId,
+      rent_amount: 0,
+      stripe_customer_id: customer.id,
+    })
+    .select("id, unit_id")
+    .single();
+  if (error) throw new Error(error.message);
+
   return {
-    tenant_id: tenant.id,
-    unit_id: tenant.unit_id,
-    property_id: unit.property_id,
+    tenant_id: inserted.id,
+    unit_id: inserted.unit_id,
+    property_id: propertyId,
   };
 }
 
@@ -96,18 +187,73 @@ function invoiceDueDate(inv: Stripe.Invoice): string {
   return new Date(ts).toISOString().slice(0, 10);
 }
 
+function customerIdFromInvoice(inv: Stripe.Invoice): string | null {
+  return typeof inv.customer === "string"
+    ? inv.customer
+    : (inv.customer?.id ?? null);
+}
+
+/* ----------------------------- handlers ----------------------------- */
+
+async function onCustomerUpsert(customer: Stripe.Customer) {
+  // Provision tenant if missing; if present, refresh name/email.
+  const { data: existing } = await supabaseAdmin
+    .from("tenants")
+    .select("id")
+    .eq("stripe_customer_id", customer.id)
+    .maybeSingle();
+
+  if (!existing) {
+    await provisionTenantFromCustomer(customer);
+    return;
+  }
+
+  await supabaseAdmin
+    .from("tenants")
+    .update({
+      name: customer.name ?? customer.email ?? `Tenant ${customer.id.slice(-6)}`,
+      email: customer.email ?? null,
+    })
+    .eq("id", existing.id);
+}
+
+async function onSubscriptionUpsert(sub: Stripe.Subscription) {
+  const customerId =
+    typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+  const ctx = await ensureTenantCtx(customerId);
+  if (!ctx) return;
+
+  // Derive monthly rent from the subscription's first item
+  const item = sub.items.data[0];
+  const rent = item?.price.unit_amount
+    ? Number(item.price.unit_amount) / 100
+    : 0;
+
+  await supabaseAdmin
+    .from("tenants")
+    .update({
+      stripe_subscription_id: sub.id,
+      rent_amount: rent,
+    })
+    .eq("id", ctx.tenant_id);
+}
+
+async function onSubscriptionDeleted(sub: Stripe.Subscription) {
+  await supabaseAdmin
+    .from("tenants")
+    .update({ stripe_subscription_id: null })
+    .eq("stripe_subscription_id", sub.id);
+}
+
 async function upsertObligationFromInvoice(inv: Stripe.Invoice) {
   if (!inv.id) return null;
-  const ctx = await resolveTenantCtx(
-    typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null),
-  );
+  const ctx = await ensureTenantCtx(customerIdFromInvoice(inv));
   if (!ctx) return null;
 
   const amount = (inv.amount_due ?? 0) / 100;
   const month = invoiceMonth(inv);
   const due = invoiceDueDate(inv);
 
-  // Check for existing obligation by stripe_invoice_id
   const { data: existing } = await supabaseAdmin
     .from("rent_obligations")
     .select("id, status")
@@ -136,9 +282,7 @@ async function upsertObligationFromInvoice(inv: Stripe.Invoice) {
 
 async function onInvoicePaid(inv: Stripe.Invoice) {
   const obligationId = await upsertObligationFromInvoice(inv);
-  const ctx = await resolveTenantCtx(
-    typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null),
-  );
+  const ctx = await ensureTenantCtx(customerIdFromInvoice(inv));
   if (!ctx || !obligationId) return;
 
   await supabaseAdmin
@@ -157,7 +301,6 @@ async function onInvoicePaid(inv: Stripe.Invoice) {
     occurred_at: new Date().toISOString(),
   });
 
-  // Clear any open exception for this obligation
   await supabaseAdmin
     .from("exceptions")
     .update({ status: "resolved" })
@@ -166,9 +309,7 @@ async function onInvoicePaid(inv: Stripe.Invoice) {
 
 async function onInvoiceFailed(inv: Stripe.Invoice) {
   const obligationId = await upsertObligationFromInvoice(inv);
-  const ctx = await resolveTenantCtx(
-    typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null),
-  );
+  const ctx = await ensureTenantCtx(customerIdFromInvoice(inv));
   if (!ctx || !obligationId) return;
 
   const attemptCount = inv.attempt_count ?? 1;
@@ -179,7 +320,6 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
     .update({ status: newStatus })
     .eq("id", obligationId);
 
-  // Failure reason from last_payment_error if available
   const charge = (inv as unknown as { last_finalization_error?: { message?: string } })
     .last_finalization_error;
   const reason = charge?.message ?? "card_declined";
@@ -196,7 +336,6 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
     occurred_at: new Date().toISOString(),
   });
 
-  // Create / refresh exception
   const { data: existingExc } = await supabaseAdmin
     .from("exceptions")
     .select("id")
@@ -204,8 +343,7 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
     .maybeSingle();
 
   const severity = attemptCount >= 3 ? "high" : "medium";
-  const recommended =
-    attemptCount >= 3 ? "escalate_to_human" : "schedule_retry";
+  const recommended = attemptCount >= 3 ? "escalate_to_human" : "schedule_retry";
 
   if (existingExc) {
     await supabaseAdmin
@@ -231,3 +369,41 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
     });
   }
 }
+
+async function onChargeRefunded(charge: Stripe.Charge, eventId: string) {
+  const customerId =
+    typeof charge.customer === "string"
+      ? charge.customer
+      : (charge.customer?.id ?? null);
+  const ctx = await ensureTenantCtx(customerId);
+  if (!ctx) return;
+
+  // Try to associate with an obligation via the related invoice
+  let obligationId: string | null = null;
+  const invRef = (charge as unknown as { invoice?: string | { id: string } | null }).invoice;
+  const invoiceId =
+    typeof invRef === "string" ? invRef : (invRef?.id ?? null);
+  if (invoiceId) {
+    const { data: ob } = await supabaseAdmin
+      .from("rent_obligations")
+      .select("id")
+      .eq("stripe_invoice_id", invoiceId)
+      .maybeSingle();
+    obligationId = ob?.id ?? null;
+  }
+
+  // rent_obligation_id is NOT NULL — skip event if we can't tie it to an obligation
+  if (!obligationId) return;
+
+  await supabaseAdmin.from("payment_events").insert({
+    tenant_id: ctx.tenant_id,
+    unit_id: ctx.unit_id,
+    rent_obligation_id: obligationId,
+    type: "refund",
+    amount: (charge.amount_refunded ?? 0) / 100,
+    source: "stripe",
+    stripe_event_id: eventId,
+    occurred_at: new Date().toISOString(),
+  });
+}
+
