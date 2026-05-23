@@ -54,7 +54,7 @@ export const resetDemo = createServerFn({ method: "POST" }).handler(
           limit: 100,
         })) {
           try {
-            await stripe.testHelpers.testClocks.delete(clock.id);
+            await (stripe.testHelpers.testClocks as unknown as { delete: (id: string) => Promise<unknown> }).delete(clock.id);
           } catch {
             // ignore individual failures
           }
