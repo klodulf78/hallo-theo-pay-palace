@@ -126,52 +126,83 @@ export const addTenant = createServerFn({ method: "POST" }).handler(
       })
       .select("id")
       .single();
-    if (tErr) throw new Error(tErr.message);
+    if (tErr) {
+      // rollback unit
+      await supabaseAdmin.from("units").delete().eq("id", unit.id);
+      throw new Error(tErr.message);
+    }
 
-    // 5. Stripe customer + SEPA payment method
-    const { data: gr } = await supabaseAdmin
-      .from("guardrails")
-      .select("stripe_test_clock_id")
-      .maybeSingle();
-
-    const customer = await stripe.customers.create({
-      name,
-      email,
-      ...(gr?.stripe_test_clock_id ? { test_clock: gr.stripe_test_clock_id } : {}),
-      metadata: { tenant_id: tenant.id },
-    });
-
+    // 5. Stripe customer + SEPA payment method.
+    // NOTE: We intentionally do NOT attach to the test clock here. The test
+    // clock has a 3-customer limit and is only used for subscription-driven
+    // demos. New tenants use the manual SEPA-Lauf flow.
     const iban = behavior === "critical" ? IBAN_CRITICAL : IBAN_RELIABLE;
-    const pm = await stripe.paymentMethods.create({
-      type: "sepa_debit",
-      sepa_debit: { iban },
-      billing_details: { name, email },
-    });
-    await stripe.paymentMethods.attach(pm.id, { customer: customer.id });
-    await stripe.customers.update(customer.id, {
-      invoice_settings: { default_payment_method: pm.id },
-    });
 
-    // 6. Persist
-    await supabaseAdmin
-      .from("tenants")
-      .update({ stripe_customer_id: customer.id })
-      .eq("id", tenant.id);
+    const rollbackDb = async () => {
+      await supabaseAdmin.from("sepa_mandates").delete().eq("tenant_id", tenant.id);
+      await supabaseAdmin.from("tenants").delete().eq("id", tenant.id);
+      await supabaseAdmin.from("units").delete().eq("id", unit.id);
+    };
 
-    await supabaseAdmin.from("sepa_mandates").insert({
-      tenant_id: tenant.id,
-      iban,
-      stripe_mandate_id: pm.id,
-      mandate_reference: `MANDATE-${unitLabel}`,
-      signed_date: new Date().toISOString().slice(0, 10),
-      status: "active",
-    });
+    let customerId: string;
+    let pmId: string;
+    try {
+      const customer = await stripe.customers.create({
+        name,
+        email,
+        metadata: { tenant_id: tenant.id },
+      });
+      customerId = customer.id;
+
+      const pm = await stripe.paymentMethods.create({
+        type: "sepa_debit",
+        sepa_debit: { iban },
+        billing_details: { name, email },
+      });
+      pmId = pm.id;
+      await stripe.paymentMethods.attach(pm.id, { customer: customer.id });
+      await stripe.customers.update(customer.id, {
+        invoice_settings: { default_payment_method: pm.id },
+      });
+    } catch (e) {
+      await rollbackDb();
+      throw new Error(`Stripe setup failed: ${(e as Error).message}`);
+    }
+
+    // 6. Persist Stripe IDs. If this fails, roll back Stripe + DB.
+    try {
+      const { error: updErr } = await supabaseAdmin
+        .from("tenants")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", tenant.id);
+      if (updErr) throw new Error(updErr.message);
+
+      const { error: mandateErr } = await supabaseAdmin
+        .from("sepa_mandates")
+        .insert({
+          tenant_id: tenant.id,
+          iban,
+          stripe_mandate_id: pmId,
+          mandate_reference: `MANDATE-${unitLabel}`,
+          signed_date: new Date().toISOString().slice(0, 10),
+          status: "active",
+        });
+      if (mandateErr) throw new Error(mandateErr.message);
+    } catch (e) {
+      try {
+        await stripe.customers.del(customerId);
+      } catch {
+        /* ignore */
+      }
+      await rollbackDb();
+      throw new Error(`DB persistence failed: ${(e as Error).message}`);
+    }
 
     return {
       tenantId: tenant.id,
       tenantName: name,
       unitLabel,
-      stripeCustomerId: customer.id,
+      stripeCustomerId: customerId,
     };
   },
 );
