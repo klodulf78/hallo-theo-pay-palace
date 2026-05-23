@@ -380,8 +380,9 @@ async function onChargeRefunded(charge: Stripe.Charge, eventId: string) {
 
   // Try to associate with an obligation via the related invoice
   let obligationId: string | null = null;
+  const invRef = (charge as unknown as { invoice?: string | { id: string } | null }).invoice;
   const invoiceId =
-    typeof charge.invoice === "string" ? charge.invoice : charge.invoice?.id;
+    typeof invRef === "string" ? invRef : (invRef?.id ?? null);
   if (invoiceId) {
     const { data: ob } = await supabaseAdmin
       .from("rent_obligations")
@@ -390,6 +391,9 @@ async function onChargeRefunded(charge: Stripe.Charge, eventId: string) {
       .maybeSingle();
     obligationId = ob?.id ?? null;
   }
+
+  // rent_obligation_id is NOT NULL — skip event if we can't tie it to an obligation
+  if (!obligationId) return;
 
   await supabaseAdmin.from("payment_events").insert({
     tenant_id: ctx.tenant_id,
@@ -402,3 +406,4 @@ async function onChargeRefunded(charge: Stripe.Charge, eventId: string) {
     occurred_at: new Date().toISOString(),
   });
 }
+
