@@ -241,3 +241,65 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
     return { triggered, skipped, errors };
   },
 );
+
+export const advanceSimulatedMonth = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{
+    from: string;
+    to: string;
+    message: string;
+    stripeAdvanced: boolean;
+    dunning: { stages_issued?: number; error?: string } | null;
+  }> => {
+    const from = await ensureSimulatedNow();
+    const to = addOneMonth(from);
+
+    const { data: gr } = await supabaseAdmin
+      .from("guardrails")
+      .select("id, stripe_test_clock_id")
+      .maybeSingle();
+    if (gr?.id) {
+      await supabaseAdmin
+        .from("guardrails")
+        .update({ simulated_now: to })
+        .eq("id", gr.id);
+    }
+
+    // Best-effort: nudge the Stripe test clock to the new simulated date so
+    // subscription invoices align with the demo timeline.
+    let stripeAdvanced = false;
+    if (gr?.stripe_test_clock_id) {
+      try {
+        const stripe = getStripe();
+        const frozen = Math.floor(new Date(to + "T08:00:00Z").getTime() / 1000);
+        await stripe.testHelpers.testClocks.advance(gr.stripe_test_clock_id, {
+          frozen_time: frozen,
+        });
+        stripeAdvanced = true;
+      } catch (e) {
+        console.warn(
+          `[advanceSimulatedMonth] stripe advance failed: ${(e as Error).message}`,
+        );
+      }
+    }
+
+    // Trigger dunning engine for the new "today".
+    let dunning: { stages_issued?: number; error?: string } | null = null;
+    try {
+      const { data, error } = await supabaseAdmin.functions.invoke<{
+        stages_issued?: number;
+      }>("run-dunning", { body: { as_of: to } });
+      if (error) dunning = { error: error.message };
+      else dunning = data ?? null;
+    } catch (e) {
+      dunning = { error: (e as Error).message };
+    }
+
+    return {
+      from,
+      to,
+      message: `Demo-Datum: ${from} → ${to}`,
+      stripeAdvanced,
+      dunning,
+    };
+  },
+);
