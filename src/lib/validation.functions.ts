@@ -268,18 +268,22 @@ export const runSepaRun = createServerFn({ method: "POST" }).handler(
           console.warn(
             `[runSepaRun] PaymentIntent failed (expected for critical): ${t.name}: ${msg}`,
           );
-          // Record a payment_event so the failure surfaces in the UI even if
-          // Stripe webhooks don't deliver to this dev preview.
+          // Record a constraint-compliant payment_event so the failure
+          // surfaces in the UI even without webhook delivery.
           await supabaseAdmin.from("payment_events").insert({
             rent_obligation_id: obligationId,
             tenant_id: t.id,
             unit_id: t.unit_id,
-            type: "charge_failed",
+            type: "failed",
             amount: Number(t.rent_amount),
-            failure_reason: msg.slice(0, 250),
-            source: "sepa_run",
+            failure_reason: "insufficient_funds",
+            source: "simulation",
             occurred_at: new Date().toISOString(),
           });
+          await supabaseAdmin
+            .from("rent_obligations")
+            .update({ status: "failed" })
+            .eq("id", obligationId);
         }
 
         triggered++;
