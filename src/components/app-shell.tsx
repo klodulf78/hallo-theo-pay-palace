@@ -5,11 +5,7 @@ import {
   Activity,
   UserCircle2,
   Building2,
-  Play,
-  Loader2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { advanceMonth, useAdvancing } from "@/lib/cycle-store";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -23,7 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({
     select: (s) => s.location.pathname,
   });
-  const advancing = useAdvancing();
+  
 
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground">
@@ -77,20 +73,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
-          <Button
-            onClick={() => {
-              void advanceMonth();
-            }}
-            disabled={advancing}
-            className="gap-2"
-          >
-            {advancing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4 fill-current" />
-            )}
-            {advancing ? "Advancing…" : "Advance Month"}
-          </Button>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8">
