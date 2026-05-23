@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RecentEventsCard } from "@/components/recent-events-card";
 import { DemoControlsCard } from "@/components/demo-controls-card";
+import { ResetDemoCard } from "@/components/reset-demo-card";
 import {
   HeaderStrip,
   LiveStateCard,
@@ -38,6 +39,10 @@ function Dashboard() {
       <LiveStateCard />
       <DunningStatusCard />
       <RecentEventsCard />
+
+      <div className="pt-8">
+        <ResetDemoCard />
+      </div>
     </div>
   );
 }
