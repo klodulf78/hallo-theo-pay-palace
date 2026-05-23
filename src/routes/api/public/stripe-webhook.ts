@@ -340,9 +340,9 @@ async function onInvoicePaid(inv: Stripe.Invoice) {
     tenant_id: ctx.tenant_id,
     unit_id: ctx.unit_id,
     rent_obligation_id: obligationId,
-    type: "payment_succeeded",
+    type: "succeeded",
     amount: (inv.amount_paid ?? 0) / 100,
-    source: "stripe",
+    source: "stripe_webhook",
     stripe_event_id: inv.id,
     occurred_at: new Date().toISOString(),
   });
@@ -359,25 +359,26 @@ async function onInvoiceFailed(inv: Stripe.Invoice) {
   if (!ctx || !obligationId) return;
 
   const attemptCount = inv.attempt_count ?? 1;
-  const newStatus = attemptCount >= 3 ? "human_review" : "retry_scheduled";
 
   await supabaseAdmin
     .from("rent_obligations")
-    .update({ status: newStatus })
+    .update({ status: attemptCount >= 3 ? "human_review" : "failed" })
     .eq("id", obligationId);
 
   const charge = (inv as unknown as { last_finalization_error?: { message?: string } })
     .last_finalization_error;
-  const reason = charge?.message ?? "card_declined";
+  const reason = /mandate/i.test(charge?.message ?? "")
+    ? "invalid_mandate"
+    : "insufficient_funds";
 
   await supabaseAdmin.from("payment_events").insert({
     tenant_id: ctx.tenant_id,
     unit_id: ctx.unit_id,
     rent_obligation_id: obligationId,
-    type: "payment_failed",
+    type: "failed",
     amount: (inv.amount_due ?? 0) / 100,
     failure_reason: reason,
-    source: "stripe",
+    source: "stripe_webhook",
     stripe_event_id: inv.id,
     occurred_at: new Date().toISOString(),
   });
