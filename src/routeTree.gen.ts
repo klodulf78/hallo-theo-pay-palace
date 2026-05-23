@@ -13,6 +13,7 @@ import { Route as TenantPortalRouteImport } from './routes/tenant-portal'
 import { Route as ExceptionsRouteImport } from './routes/exceptions'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
 
 const TenantPortalRoute = TenantPortalRouteImport.update({
   id: '/tenant-portal',
@@ -34,18 +35,25 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
+  id: '/api/public/stripe-webhook',
+  path: '/api/public/stripe-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/exceptions': typeof ExceptionsRoute
   '/tenant-portal': typeof TenantPortalRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/exceptions': typeof ExceptionsRoute
   '/tenant-portal': typeof TenantPortalRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,30 @@ export interface FileRoutesById {
   '/activity': typeof ActivityRoute
   '/exceptions': typeof ExceptionsRoute
   '/tenant-portal': typeof TenantPortalRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/activity' | '/exceptions' | '/tenant-portal'
+  fullPaths:
+    | '/'
+    | '/activity'
+    | '/exceptions'
+    | '/tenant-portal'
+    | '/api/public/stripe-webhook'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/activity' | '/exceptions' | '/tenant-portal'
-  id: '__root__' | '/' | '/activity' | '/exceptions' | '/tenant-portal'
+  to:
+    | '/'
+    | '/activity'
+    | '/exceptions'
+    | '/tenant-portal'
+    | '/api/public/stripe-webhook'
+  id:
+    | '__root__'
+    | '/'
+    | '/activity'
+    | '/exceptions'
+    | '/tenant-portal'
+    | '/api/public/stripe-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +92,7 @@ export interface RootRouteChildren {
   ActivityRoute: typeof ActivityRoute
   ExceptionsRoute: typeof ExceptionsRoute
   TenantPortalRoute: typeof TenantPortalRoute
+  ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +125,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/stripe-webhook': {
+      id: '/api/public/stripe-webhook'
+      path: '/api/public/stripe-webhook'
+      fullPath: '/api/public/stripe-webhook'
+      preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +140,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityRoute: ActivityRoute,
   ExceptionsRoute: ExceptionsRoute,
   TenantPortalRoute: TenantPortalRoute,
+  ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
