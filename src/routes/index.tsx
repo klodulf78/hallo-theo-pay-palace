@@ -134,6 +134,9 @@ function Dashboard() {
           </span>
         </div>
       </div>
+      <div className="flex justify-end">
+        <AddTenantButton />
+      </div>
       <StripeSetupCard />
 
       {/* AI Summary */}
