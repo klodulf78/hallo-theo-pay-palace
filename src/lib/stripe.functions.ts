@@ -1,10 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import {
-  getStripe,
-  paymentMethodForBehavior,
-  DEMO_START_UNIX,
-} from "./stripe.server";
+import { getStripe, paymentMethodForBehavior, DEMO_START_UNIX } from "./stripe.server";
 
 type SetupResult = {
   testClockId: string;
@@ -43,9 +39,7 @@ export const setupStripeDemo = createServerFn({ method: "POST" }).handler(
           .update({ stripe_test_clock_id: testClockId })
           .eq("id", gr.id);
       } else {
-        await supabaseAdmin
-          .from("guardrails")
-          .insert({ stripe_test_clock_id: testClockId });
+        await supabaseAdmin.from("guardrails").insert({ stripe_test_clock_id: testClockId });
       }
     }
 
@@ -82,7 +76,17 @@ export const setupStripeDemo = createServerFn({ method: "POST" }).handler(
 
         // Attach a deterministic test PaymentMethod
         const pmToken = paymentMethodForBehavior(t.behavior_profile);
-        const pm = await stripe.paymentMethods.create({ type: "card", card: { token: pmToken === "pm_card_visa" ? "tok_visa" : pmToken === "pm_card_chargeDeclinedInsufficientFunds" ? "tok_chargeDeclinedInsufficientFunds" : "tok_chargeCustomerFail" } });
+        const pm = await stripe.paymentMethods.create({
+          type: "card",
+          card: {
+            token:
+              pmToken === "pm_card_visa"
+                ? "tok_visa"
+                : pmToken === "pm_card_chargeDeclinedInsufficientFunds"
+                  ? "tok_chargeDeclinedInsufficientFunds"
+                  : "tok_chargeCustomerFail",
+          },
+        });
         await stripe.paymentMethods.attach(pm.id, { customer: customer.id });
         await stripe.customers.update(customer.id, {
           invoice_settings: { default_payment_method: pm.id },
@@ -130,12 +134,24 @@ export const setupStripeDemo = createServerFn({ method: "POST" }).handler(
   },
 );
 
+type DunningSummary = {
+  as_of?: string;
+  scanned?: number;
+  stages_issued?: number;
+  stages_by_stage?: Record<string, number>;
+  resets?: number;
+  exceptions_created?: number;
+  skipped?: number;
+  error?: string;
+};
+
 type AdvanceResult = {
   testClockId: string | null;
   fromUnix: number | null;
   toUnix: number | null;
   status: string | null;
   message: string;
+  dunning: DunningSummary | null;
 };
 
 /**
@@ -160,6 +176,7 @@ export const advanceStripeMonth = createServerFn({ method: "POST" }).handler(
         toUnix: null,
         status: null,
         message: "No test clock — run setup first.",
+        dunning: null,
       };
     }
 
@@ -177,12 +194,39 @@ export const advanceStripeMonth = createServerFn({ method: "POST" }).handler(
       final = await stripe.testHelpers.testClocks.retrieve(id);
     }
 
+    // Persist the new Time-Machine date on guardrails. The dunning engine
+    // reads `simulated_now` to know what "today" is in the demo world.
+    const simulatedNow = new Date(final.frozen_time * 1000).toISOString().slice(0, 10);
+    await supabaseAdmin
+      .from("guardrails")
+      .update({ simulated_now: simulatedNow })
+      .eq("stripe_test_clock_id", id);
+
+    // Trigger the dunning automation. Idempotent — safe to invoke on every
+    // advance. Wrapped so a function-deploy issue doesn't break the clock UX.
+    let dunning: DunningSummary | null = null;
+    try {
+      const { data, error } = await supabaseAdmin.functions.invoke<DunningSummary>("run-dunning", {
+        body: { as_of: simulatedNow },
+      });
+      if (error) {
+        console.warn(`[advanceStripeMonth] run-dunning invoke failed: ${error.message}`);
+        dunning = { error: error.message };
+      } else {
+        dunning = data ?? null;
+      }
+    } catch (e) {
+      console.warn(`[advanceStripeMonth] run-dunning threw: ${(e as Error).message}`);
+      dunning = { error: (e as Error).message };
+    }
+
     return {
       testClockId: id,
       fromUnix: current.frozen_time,
       toUnix: final.frozen_time,
       status: final.status,
-      message: `Clock advanced to ${new Date(final.frozen_time * 1000).toISOString().slice(0, 10)}`,
+      message: `Clock advanced to ${simulatedNow}`,
+      dunning,
     };
   },
 );
@@ -201,27 +245,20 @@ export const getStripeStatus = createServerFn({ method: "GET" }).handler(
     const stripe = getStripe();
     const [{ data: gr }, { count: total }, { count: provisioned }, { count: evCount }] =
       await Promise.all([
-        supabaseAdmin
-          .from("guardrails")
-          .select("stripe_test_clock_id")
-          .maybeSingle(),
+        supabaseAdmin.from("guardrails").select("stripe_test_clock_id").maybeSingle(),
         supabaseAdmin.from("tenants").select("id", { count: "exact", head: true }),
         supabaseAdmin
           .from("tenants")
           .select("id", { count: "exact", head: true })
           .not("stripe_customer_id", "is", null),
-        supabaseAdmin
-          .from("payment_events")
-          .select("id", { count: "exact", head: true }),
+        supabaseAdmin.from("payment_events").select("id", { count: "exact", head: true }),
       ]);
 
     let time: number | null = null;
     let status: string | null = null;
     if (gr?.stripe_test_clock_id) {
       try {
-        const c = await stripe.testHelpers.testClocks.retrieve(
-          gr.stripe_test_clock_id,
-        );
+        const c = await stripe.testHelpers.testClocks.retrieve(gr.stripe_test_clock_id);
         time = c.frozen_time;
         status = c.status;
       } catch {
