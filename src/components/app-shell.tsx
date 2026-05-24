@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
-  { label: "Demo-Ablauf", to: "/demo-flow", icon: Workflow },
   { label: "Eskalationen", to: "/exceptions", icon: AlertTriangle },
+  { label: "Demo-Ablauf", to: "/demo-flow", icon: Workflow },
   
 ] as const;
 
