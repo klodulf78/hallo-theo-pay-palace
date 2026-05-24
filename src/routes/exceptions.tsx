@@ -109,10 +109,10 @@ const fmtPct = (n: number, d = 2) =>
   `${(n * 100).toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d })}\u00a0%`;
 
 const severityStyle: Record<string, string> = {
-  critical: "bg-red-500/15 text-red-700 border-red-500/30",
-  high: "bg-orange-500/15 text-orange-700 border-orange-500/30",
-  medium: "bg-amber-500/15 text-amber-800 border-amber-500/30",
-  low: "bg-muted text-muted-foreground border-border",
+  critical: "bg-red-500/15 text-red-700 border-red-500/40",
+  high: "bg-orange-500/15 text-orange-700 border-orange-500/40",
+  medium: "bg-orange-500/15 text-orange-700 border-orange-500/40",
+  low: "bg-yellow-500/15 text-yellow-800 border-yellow-500/40",
 };
 
 const stageStyle: Record<number, string> = {
@@ -410,15 +410,21 @@ function TenantCaseCard({
             {c.propertyName} · {c.unitLabel}
           </div>
         </div>
-        <Badge
-          variant="outline"
-          className={cn(
-            "capitalize text-xs",
-            severityStyle[c.severity] ?? severityStyle.low,
-          )}
-        >
-          {c.severity}
-        </Badge>
+        {(() => {
+          const maxStage = c.notices.reduce((m, n) => Math.max(m, n.stage), 0);
+          const derived =
+            maxStage >= 3 ? "critical" : maxStage === 2 ? "medium" : maxStage === 1 ? "low" : "low";
+          const label =
+            derived === "critical" ? "Critical" : derived === "medium" ? "Medium" : "Low";
+          return (
+            <Badge
+              variant="outline"
+              className={cn("text-xs", severityStyle[derived] ?? severityStyle.low)}
+            >
+              {label}
+            </Badge>
+          );
+        })()}
       </div>
 
       {/* Saldo block */}

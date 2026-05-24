@@ -41,9 +41,9 @@ function dateLabel(iso: string) {
 
 function eventIcon(type: string) {
   if (type === "payment_succeeded")
-    return <CheckCircle className="h-4 w-4 text-green-700" />;
+    return <CheckCircle className="h-4 w-4" style={{ color: "#16a34a" }} />;
   if (type === "payment_failed")
-    return <XCircle className="h-4 w-4 text-red-700" />;
+    return <XCircle className="h-4 w-4" style={{ color: "#dc2626" }} />;
   if (type === "refund")
     return <RotateCcw className="h-4 w-4 text-[var(--status-plan)]" />;
   return <Activity className="h-4 w-4 text-muted-foreground" />;
@@ -65,13 +65,19 @@ function eventLabel(type: string) {
 function statusBadge(type: string) {
   if (type === "payment_succeeded")
     return (
-      <Badge className="bg-green-600 text-white hover:bg-green-600 border-0">
+      <Badge
+        className="border-0 text-white"
+        style={{ backgroundColor: "#16a34a" }}
+      >
         succeeded
       </Badge>
     );
   if (type === "payment_failed")
     return (
-      <Badge className="bg-red-600 text-white hover:bg-red-600 border-0">
+      <Badge
+        className="border-0 text-white"
+        style={{ backgroundColor: "#dc2626" }}
+      >
         failed
       </Badge>
     );
@@ -256,48 +262,51 @@ export function RecentEventsCard() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  {g.items.map((e) => (
-                    <div
-                      key={e.id}
-                      className={cn(
-                        "flex items-center justify-between gap-3 py-3 pl-3 pr-4 rounded-md border-l-4",
-                        e.type === "payment_succeeded" &&
-                          "bg-green-50 border-green-600",
-                        e.type === "payment_failed" &&
-                          "bg-red-50 border-red-600",
-                        e.type !== "payment_succeeded" &&
-                          e.type !== "payment_failed" &&
-                          "bg-muted/30 border-border",
-                      )}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="shrink-0">{eventIcon(e.type)}</div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium truncate">
-                              {eventLabel(e.type)}
-                            </span>
-                            {statusBadge(e.type)}
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate mt-0.5">
-                            {fmtTime(e.occurredAt)}
-                            {e.tenantName ? ` · ${e.tenantName}` : ""}
-                            {e.failureReason ? ` · ${e.failureReason}` : ""}
+                  {g.items.map((e) => {
+                    const isSuccess = e.type === "payment_succeeded";
+                    const isFailed = e.type === "payment_failed";
+                    const rowStyle: React.CSSProperties = isSuccess
+                      ? { backgroundColor: "#dcfce7", borderLeft: "4px solid #16a34a" }
+                      : isFailed
+                        ? { backgroundColor: "#fee2e2", borderLeft: "4px solid #dc2626" }
+                        : { backgroundColor: "rgba(0,0,0,0.03)", borderLeft: "4px solid hsl(var(--border))" };
+                    return (
+                      <div
+                        key={e.id}
+                        style={rowStyle}
+                        className="flex items-center justify-between gap-3 py-3 pl-3 pr-4 rounded-md"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="shrink-0">{eventIcon(e.type)}</div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-semibold truncate">
+                                {eventLabel(e.type)}
+                              </span>
+                              {statusBadge(e.type)}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate mt-0.5">
+                              {fmtTime(e.occurredAt)}
+                              {e.tenantName ? ` · ${e.tenantName}` : ""}
+                              {e.failureReason ? ` · ${e.failureReason}` : ""}
+                            </div>
                           </div>
                         </div>
+                        <div
+                          className="text-sm font-bold tabular-nums shrink-0"
+                          style={{
+                            color: isSuccess
+                              ? "#15803d"
+                              : isFailed
+                                ? "#b91c1c"
+                                : undefined,
+                          }}
+                        >
+                          {fmtEur(e.amount)}
+                        </div>
                       </div>
-                      <div
-                        className={cn(
-                          "text-sm font-semibold tabular-nums shrink-0",
-                          e.type === "payment_succeeded" && "text-green-700",
-                          e.type === "payment_failed" && "text-red-700",
-                          e.type === "refund" && "text-[var(--status-plan)]",
-                        )}
-                      >
-                        {fmtEur(e.amount)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

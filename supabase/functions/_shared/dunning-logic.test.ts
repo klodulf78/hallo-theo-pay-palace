@@ -119,6 +119,27 @@ describe("Stage 1 trigger", () => {
       expect(action.issuedDate).toBe("2026-05-04");
     }
   });
+  it("backdates SEPA Stage 1 to the actual chargeback date when asOf is later", () => {
+    // Chargeback happened 2026-05-01; engine runs on 2026-06-01.
+    // Expected: issued_date and default_since == 2026-05-01, not 2026-06-01.
+    const action = decideClaimAction(
+      baseClaim({
+        hadSepaChargeback: true,
+        sepaChargebackDate: "2026-05-01",
+      }),
+      NO_ARREARS,
+      POLICY,
+      null,
+      "2026-06-01",
+    );
+    expect(action.kind).toBe("issue_stage");
+    if (action.kind === "issue_stage") {
+      expect(action.stage).toBe(1);
+      expect(action.issuedDate).toBe("2026-05-01");
+      expect(action.newDefaultSince).toBe("2026-05-01");
+      expect(action.verzugsnachweis.trigger).toBe("sepa_chargeback");
+    }
+  });
 });
 
 describe("Idempotency", () => {

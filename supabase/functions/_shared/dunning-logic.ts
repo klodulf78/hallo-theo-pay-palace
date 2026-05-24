@@ -48,6 +48,10 @@ export type ClaimInput = {
   accruedDefaultInterest: number;
   // Has any SEPA Rücklastschrift hit this claim (returned debit)?
   hadSepaChargeback: boolean;
+  // ISO date (YYYY-MM-DD) of the earliest SEPA chargeback for this claim, if any.
+  // Used to historically backdate Stage 1 / default_since to the actual default
+  // event rather than the engine's run date.
+  sepaChargebackDate?: string | null;
   // Existing dunning_notices stages already issued for this claim,
   // keyed by stage number → issued_date (ISO YYYY-MM-DD).
   existingNotices: Record<1 | 2 | 3, string | undefined>;
@@ -220,9 +224,15 @@ export function decideClaimAction(
 
   // Stage 1 trigger: today >= default_since (or SEPA chargeback)
   if (!stage1Already && (sepaImmediate || today >= defaultSinceDate)) {
-    // For SEPA chargeback: default_since = today (the chargeback day) so
-    // interest doesn't pre-date the actual default event.
-    const defaultSinceIso = sepaImmediate ? toIsoDate(today) : toIsoDate(defaultSinceDate);
+    // For SEPA chargeback: default_since = actual chargeback date (clamped to
+    // asOf) so interest and downstream stages are dated from the legal event,
+    // not from when the engine happened to run.
+    const asOfIso = toIsoDate(today);
+    const chargebackIso =
+      claim.sepaChargebackDate && claim.sepaChargebackDate <= asOfIso
+        ? claim.sepaChargebackDate
+        : asOfIso;
+    const defaultSinceIso = sepaImmediate ? chargebackIso : toIsoDate(defaultSinceDate);
     return buildIssueAction(
       1,
       claim,
@@ -300,10 +310,11 @@ function buildIssueAction(
   // issued legally, not when the dunning engine happened to run.
   let issuedDate: string;
   if (stage === 1) {
-    // SEPA chargeback: fires the day of detection (asOf approximates the event).
+    // SEPA chargeback: issued the day of the chargeback (= defaultSinceIso,
+    // which the caller has already set to the chargeback date for sepa_chargeback).
     // Normal default: the day the claim first counted as in default.
     issuedDate =
-      trigger === "sepa_chargeback" ? asOf : minIsoDate(defaultSinceIso, asOf);
+      trigger === "sepa_chargeback" ? defaultSinceIso : minIsoDate(defaultSinceIso, asOf);
   } else if (stage === 2) {
     const s1 = claim.existingNotices[1];
     if (!s1) {
