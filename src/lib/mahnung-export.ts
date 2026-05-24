@@ -162,7 +162,23 @@ export function downloadAsPdf(d: MahnungLetterData): void {
   doc.setFont("helvetica", "bold");
   doc.text("Hausverwaltung Hallo Theo", marginX, y);
 
-  doc.save(`${fileBaseName(d)}.pdf`);
+  const filename = `${fileBaseName(d)}.pdf`;
+  const blob = doc.output("blob");
+  triggerDownload(blob, filename);
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  // target=_blank ensures downloads work inside sandboxed preview iframes
+  a.target = "_blank";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 /* -------------------- DOCX -------------------- */
@@ -396,12 +412,5 @@ export async function downloadAsDocx(d: MahnungLetterData): Promise<void> {
   });
 
   const blob = await Packer.toBlob(doc);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${fileBaseName(d)}.docx`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  triggerDownload(blob, `${fileBaseName(d)}.docx`);
 }
