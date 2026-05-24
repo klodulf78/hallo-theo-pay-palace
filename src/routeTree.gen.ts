@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TenantPortalRouteImport } from './routes/tenant-portal'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as ExceptionsRouteImport } from './routes/exceptions'
 import { Route as DemoFlowRouteImport } from './routes/demo-flow'
 import { Route as ActivityRouteImport } from './routes/activity'
@@ -19,6 +20,11 @@ import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/
 const TenantPortalRoute = TenantPortalRouteImport.update({
   id: '/tenant-portal',
   path: '/tenant-portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExceptionsRoute = ExceptionsRouteImport.update({
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
+  '/portfolio': typeof PortfolioRoute
   '/tenant-portal': typeof TenantPortalRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
+  '/portfolio': typeof PortfolioRoute
   '/tenant-portal': typeof TenantPortalRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
+  '/portfolio': typeof PortfolioRoute
   '/tenant-portal': typeof TenantPortalRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/demo-flow'
     | '/exceptions'
+    | '/portfolio'
     | '/tenant-portal'
     | '/api/public/stripe-webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/demo-flow'
     | '/exceptions'
+    | '/portfolio'
     | '/tenant-portal'
     | '/api/public/stripe-webhook'
   id:
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/demo-flow'
     | '/exceptions'
+    | '/portfolio'
     | '/tenant-portal'
     | '/api/public/stripe-webhook'
   fileRoutesById: FileRoutesById
@@ -104,6 +116,7 @@ export interface RootRouteChildren {
   ActivityRoute: typeof ActivityRoute
   DemoFlowRoute: typeof DemoFlowRoute
   ExceptionsRoute: typeof ExceptionsRoute
+  PortfolioRoute: typeof PortfolioRoute
   TenantPortalRoute: typeof TenantPortalRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
 }
@@ -115,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant-portal'
       fullPath: '/tenant-portal'
       preLoaderRoute: typeof TenantPortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/exceptions': {
@@ -160,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityRoute: ActivityRoute,
   DemoFlowRoute: DemoFlowRoute,
   ExceptionsRoute: ExceptionsRoute,
+  PortfolioRoute: PortfolioRoute,
   TenantPortalRoute: TenantPortalRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
 }

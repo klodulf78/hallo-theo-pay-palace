@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Trash2, Loader2, AlertTriangle } from "lucide-react";
+import { Trash2, Loader2, AlertTriangle, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { resetDemo } from "@/lib/reset-demo.functions";
+import { seedDemoPortfolio } from "@/lib/seed-portfolio.functions";
 
 export function ResetDemoCard() {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const resetFn = useServerFn(resetDemo);
+  const seedFn = useServerFn(seedDemoPortfolio);
 
   const m = useMutation({
     mutationFn: () => resetFn(),
@@ -40,10 +42,23 @@ export function ResetDemoCard() {
     },
   });
 
+  const seedM = useMutation({
+    mutationFn: () => seedFn(),
+    onSuccess: (d) => {
+      toast.success(
+        `Portfolio geseedet: ${d.properties} Properties, ${d.units} Einheiten, ${d.tenants} Mieter angelegt.`,
+      );
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) => {
+      toast.error("Seed fehlgeschlagen", { description: e.message });
+    },
+  });
+
   return (
     <>
       <Card className="p-4 border-red-200 bg-red-50/40 dark:bg-red-950/10 shadow-none">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
             <div className="min-w-0">
@@ -56,20 +71,34 @@ export function ResetDemoCard() {
               </div>
             </div>
           </div>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => setOpen(true)}
-            disabled={m.isPending}
-            className="shrink-0"
-          >
-            {m.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-            <span className="ml-1">Demo zurücksetzen</span>
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => seedM.mutate()}
+              disabled={seedM.isPending || m.isPending}
+            >
+              {seedM.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MapPin className="h-4 w-4" />
+              )}
+              <span className="ml-1">Demo-Portfolio seeden</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => setOpen(true)}
+              disabled={m.isPending || seedM.isPending}
+            >
+              {m.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              <span className="ml-1">Demo zurücksetzen</span>
+            </Button>
+          </div>
         </div>
       </Card>
 
