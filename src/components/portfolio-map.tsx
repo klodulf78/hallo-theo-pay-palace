@@ -77,6 +77,7 @@ export default function PortfolioMap({
   markers: PropertyMarker[];
 }) {
   const [geo, setGeo] = useState<GeoJSON.FeatureCollection | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
