@@ -665,7 +665,7 @@ function VerzugsnachweisDialog({
         )}
 
         <DialogFooter className="border-t border-border pt-4">
-          <Button variant="outline" onClick={onClose}>Schließen</Button>
+          <Button variant="outline" onClick={onClose}>{useLang().t("exceptionsPage.close")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -721,6 +721,7 @@ function MahnungDialog({
   } | null;
   onClose: () => void;
 }) {
+  const { t } = useLang();
   if (!row) {
     return (
       <Dialog open={false} onOpenChange={(o) => !o && onClose()}>
@@ -918,15 +919,15 @@ function MahnungDialog({
 
         <DialogFooter className="border-t border-border pt-4 print:hidden">
           <Button variant="outline" onClick={onClose}>
-            Schließen
+            {t("exceptionsPage.close")}
           </Button>
           <Button variant="outline" onClick={handleDocx}>
             <FileText className="h-4 w-4 mr-2" />
-            Als Word speichern
+            {t("exceptionsPage.saveWord")}
           </Button>
           <Button onClick={handlePdf}>
             <Download className="h-4 w-4 mr-2" />
-            Als PDF speichern
+            {t("exceptionsPage.savePdf")}
           </Button>
         </DialogFooter>
 
