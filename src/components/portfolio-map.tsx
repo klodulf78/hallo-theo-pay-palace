@@ -17,16 +17,20 @@ const COLOR: Record<PropertyMarker["status"], string> = {
 const germanyBounds = L.latLngBounds([47.27, 5.87], [55.06, 15.04]);
 
 const GEOJSON_URL =
-  "https://raw.githubusercontent.com/leakyMirror/map-of-europe/master/GeoJSON/europe.geojson";
+  "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson";
 
 function isGermany(props: Record<string, unknown> | undefined): boolean {
   if (!props) return false;
-  const name = (props.NAME ?? props.name) as string | undefined;
-  const iso =
-    (props.ISO2 ?? props.iso_a2 ?? props.ISO_A2 ?? props.CNTRY_CODE) as
-      | string
-      | undefined;
-  return name === "Germany" || iso === "DE";
+  const name = props.NAME as string | undefined;
+  const admin = props.ADMIN as string | undefined;
+  const iso3 = props.ISO_A3 as string | undefined;
+  return name === "Germany" || admin === "Germany" || iso3 === "DEU";
+}
+
+function isEurope(props: Record<string, unknown> | undefined): boolean {
+  if (!props) return false;
+  const continent = (props.CONTINENT ?? props.continent) as string | undefined;
+  return continent === "Europe";
 }
 
 export default function PortfolioMap({
@@ -40,8 +44,13 @@ export default function PortfolioMap({
     let cancelled = false;
     fetch(GEOJSON_URL)
       .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setGeo(d);
+      .then((d: GeoJSON.FeatureCollection) => {
+        if (cancelled) return;
+        const filtered: GeoJSON.FeatureCollection = {
+          ...d,
+          features: d.features.filter((f) => isEurope(f.properties ?? undefined)),
+        };
+        setGeo(filtered);
       })
       .catch((e) => console.error("GeoJSON load failed", e));
     return () => {
