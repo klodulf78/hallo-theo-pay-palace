@@ -5,6 +5,7 @@ import { getStripe } from "./stripe.server";
 export type ValidationState = {
   simulatedNow: string | null;
   counts: {
+    properties: number;
     tenants: number;
     rent_obligations: number;
     payment_events: number;
@@ -67,6 +68,7 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
   async (): Promise<ValidationState> => {
     const simulatedNow = await ensureSimulatedNow();
     const [
+      properties,
       tenants,
       obligations,
       events,
@@ -74,6 +76,7 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
       dunning,
       dunningRows,
     ] = await Promise.all([
+      supabaseAdmin.from("properties").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("tenants").select("id", { count: "exact", head: true }),
       supabaseAdmin
         .from("rent_obligations")
@@ -122,6 +125,7 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
     return {
       simulatedNow,
       counts: {
+        properties: properties.count ?? 0,
         tenants: tenants.count ?? 0,
         rent_obligations: obligations.count ?? 0,
         payment_events: events.count ?? 0,
