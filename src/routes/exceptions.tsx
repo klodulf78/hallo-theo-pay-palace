@@ -859,15 +859,16 @@ function MahnungDialog({
           <Button variant="outline" onClick={onClose}>
             Schließen
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={printLetter}>
             <Printer className="h-4 w-4 mr-2" />
             Drucken
           </Button>
-          <Button onClick={() => window.print()}>
+          <Button onClick={printLetter}>
             <Download className="h-4 w-4 mr-2" />
             Als PDF speichern
           </Button>
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
