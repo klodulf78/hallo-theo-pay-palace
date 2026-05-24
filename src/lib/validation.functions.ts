@@ -68,6 +68,7 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
   async (): Promise<ValidationState> => {
     const simulatedNow = await ensureSimulatedNow();
     const [
+      properties,
       tenants,
       obligations,
       events,
@@ -75,6 +76,7 @@ export const getValidationState = createServerFn({ method: "GET" }).handler(
       dunning,
       dunningRows,
     ] = await Promise.all([
+      supabaseAdmin.from("properties").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("tenants").select("id", { count: "exact", head: true }),
       supabaseAdmin
         .from("rent_obligations")
