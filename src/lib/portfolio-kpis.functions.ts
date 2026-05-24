@@ -28,7 +28,7 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
       await Promise.all([
         supabaseAdmin.from("guardrails").select("simulated_now").maybeSingle(),
         supabaseAdmin.from("properties").select("id, city"),
-        supabaseAdmin.from("units").select("id"),
+        supabaseAdmin.from("units").select("id, target_rent"),
         supabaseAdmin.from("tenants").select("id, unit_id, rent_amount"),
         supabaseAdmin.from("dunning_notices").select("stage"),
       ]);
@@ -49,8 +49,9 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
     const assignedUnits = new Set(
       tenants.map((t) => t.unit_id).filter(Boolean),
     );
-    const monthlyRent = tenants.reduce(
-      (s, t) => s + Number(t.rent_amount ?? 0),
+    // Soll-Miete = full target potential across ALL units (occupied + vacant).
+    const monthlyRent = units.reduce(
+      (s, u) => s + Number(u.target_rent ?? 0),
       0,
     );
 
