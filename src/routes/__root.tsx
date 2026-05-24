@@ -11,6 +11,7 @@ import {
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
+import leafletCss from "leaflet/dist/leaflet.css?url";
 import { AppShell } from "@/components/app-shell";
 
 function NotFoundComponent() {
@@ -90,6 +91,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      {
+        rel: "stylesheet",
+        href: leafletCss,
       },
     ],
   }),
