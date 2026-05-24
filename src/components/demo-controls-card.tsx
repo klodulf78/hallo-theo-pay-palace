@@ -98,27 +98,27 @@ export function DemoControlsCard({ includeSeed = false }: { includeSeed?: boolea
       <div className={`grid ${gridCols} gap-3`}>
         {includeSeed && (
           <BigButton
-            icon={<MapPin className="h-5 w-5" />}
-            label="Demo-Portfolio seeden"
+            icon={<Building2 className="h-5 w-5" />}
+            label="Hausverwaltung onboarden"
             loading={seedM.isPending}
             onClick={() => seedM.mutate()}
           />
         )}
         <BigButton
-          icon={<UserPlus className="h-5 w-5" />}
-          label="Neuen Mieter aufnehmen"
+          icon={<FileText className="h-5 w-5" />}
+          label="Mietverträge abschließen"
           loading={addM.isPending}
           onClick={() => addM.mutate()}
         />
         <BigButton
           icon={<CreditCard className="h-5 w-5" />}
-          label="SEPA-Lauf starten"
+          label="SEPA-Mandate & Einzug"
           loading={sepaM.isPending}
           onClick={() => sepaM.mutate()}
         />
         <BigButton
-          icon={<Calendar className="h-5 w-5" />}
-          label="Monat simulieren"
+          icon={<CalendarClock className="h-5 w-5" />}
+          label="Monatsabschluss"
           loading={monthM.isPending}
           onClick={() => monthM.mutate()}
         />
