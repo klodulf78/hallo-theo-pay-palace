@@ -169,16 +169,46 @@ export function downloadAsPdf(d: MahnungLetterData): void {
 
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.rel = "noopener";
-  // target=_blank ensures downloads work inside sandboxed preview iframes
-  a.target = "_blank";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+  // Strategy 1: try a hidden anchor with the download attribute in top window
+  // (works in most browsers, including when the preview is sandboxed with allow-downloads).
+  try {
+    const topDoc = window.top?.document ?? document;
+    const a = topDoc.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    a.style.display = "none";
+    topDoc.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch {
+    // Cross-origin top access blocked — fall through to local anchor
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  // Strategy 2 (fallback): some sandboxed iframes silently swallow the click.
+  // Open the blob URL in a new tab so the user can save it from there.
+  setTimeout(() => {
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) {
+      // Last resort: navigate top to the blob URL
+      try {
+        if (window.top) window.top.location.href = url;
+      } catch {
+        window.location.href = url;
+      }
+    }
+  }, 150);
+
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /* -------------------- DOCX -------------------- */
