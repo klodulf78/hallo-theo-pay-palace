@@ -155,13 +155,108 @@ function ExceptionsPage() {
 
   const cases = q.data ?? [];
 
+  const [sortKey, setSortKey] = useState<SortKey>("severity");
+  const [filter, setFilter] = useState<FilterKey>("all");
+
+  const filtered = useMemo(() => {
+    if (filter === "stage3")
+      return cases.filter((c) => c.notices.some((n) => n.stage === 3));
+    if (filter === "stage12")
+      return cases.filter(
+        (c) =>
+          c.notices.some((n) => n.stage === 1 || n.stage === 2) &&
+          !c.notices.some((n) => n.stage === 3),
+      );
+    return cases;
+  }, [cases, filter]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    switch (sortKey) {
+      case "saldo_desc":
+        arr.sort((a, b) => b.gesamtsaldo - a.gesamtsaldo);
+        break;
+      case "saldo_asc":
+        arr.sort((a, b) => a.gesamtsaldo - b.gesamtsaldo);
+        break;
+      case "stage_desc":
+        arr.sort((a, b) => {
+          const ma = Math.max(0, ...a.notices.map((n) => n.stage));
+          const mb = Math.max(0, ...b.notices.map((n) => n.stage));
+          if (ma !== mb) return mb - ma;
+          return b.gesamtsaldo - a.gesamtsaldo;
+        });
+        break;
+      case "tenant_asc":
+        arr.sort((a, b) => a.tenantName.localeCompare(b.tenantName, "de"));
+        break;
+      case "oldest_due":
+        arr.sort((a, b) => {
+          const da = a.notices
+            .map((n) => n.dueDate)
+            .filter(Boolean)
+            .sort()[0] ?? "9999-12-31";
+          const db = b.notices
+            .map((n) => n.dueDate)
+            .filter(Boolean)
+            .sort()[0] ?? "9999-12-31";
+          return da.localeCompare(db);
+        });
+        break;
+      case "severity":
+      default:
+        arr.sort((a, b) => {
+          const sd =
+            (SEVERITY_RANK[b.severity] ?? 0) -
+            (SEVERITY_RANK[a.severity] ?? 0);
+          if (sd !== 0) return sd;
+          return b.gesamtsaldo - a.gesamtsaldo;
+        });
+        break;
+    }
+    return arr;
+  }, [filtered, sortKey]);
+
+  const stage3Count = cases.filter((c) =>
+    c.notices.some((n) => n.stage === 3),
+  ).length;
+  const stage12Count = cases.filter(
+    (c) =>
+      c.notices.some((n) => n.stage === 1 || n.stage === 2) &&
+      !c.notices.some((n) => n.stage === 3),
+  ).length;
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 print:hidden-app">
-      <div className="print:hidden">
-        <h1 className="text-3xl font-semibold tracking-tight">Eskalationen</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Mieter mit offenen Forderungen oder aktiven Mahnstufen
-        </p>
+      <div className="print:hidden flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Eskalationen</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Mieter mit offenen Forderungen oder aktiven Mahnstufen
+          </p>
+        </div>
+        {cases.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Sortieren nach:
+            </span>
+            <Select
+              value={sortKey}
+              onValueChange={(v) => setSortKey(v as SortKey)}
+            >
+              <SelectTrigger className="h-9 w-[260px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                  <SelectItem key={k} value={k} className="text-xs">
+                    {SORT_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {cases.length === 0 ? (
@@ -171,22 +266,50 @@ function ExceptionsPage() {
           </div>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {cases.map((c) => (
-            <TenantCaseCard
-              key={c.tenantId}
-              c={c}
-              onOpenVerzugsnachweis={(n) =>
-                setVerzugsRow({ tenant: c, notice: n })
-              }
-              onOpenMahnung={(n) => setMahnungRow({ tenant: c, notice: n })}
-              onAction={() =>
-                c.stage3ExceptionId && m.mutate(c.stage3ExceptionId)
-              }
-              actionPending={m.isPending}
+        <>
+          <div className="print:hidden flex items-center gap-2">
+            <FilterChip
+              active={filter === "all"}
+              onClick={() => setFilter("all")}
+              label={`Alle (${cases.length})`}
             />
-          ))}
-        </div>
+            <FilterChip
+              active={filter === "stage3"}
+              onClick={() => setFilter("stage3")}
+              label={`Nur Stufe 3 (${stage3Count})`}
+              tone="critical"
+            />
+            <FilterChip
+              active={filter === "stage12"}
+              onClick={() => setFilter("stage12")}
+              label={`Nur Stufe 1–2 (${stage12Count})`}
+              tone="warning"
+            />
+          </div>
+
+          {sorted.length === 0 ? (
+            <Card className="p-8 border-border shadow-sm text-center text-sm text-muted-foreground">
+              Keine Mieter für diese Auswahl.
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {sorted.map((c) => (
+                <TenantCaseCard
+                  key={c.tenantId}
+                  c={c}
+                  onOpenVerzugsnachweis={(n) =>
+                    setVerzugsRow({ tenant: c, notice: n })
+                  }
+                  onOpenMahnung={(n) => setMahnungRow({ tenant: c, notice: n })}
+                  onAction={() =>
+                    c.stage3ExceptionId && m.mutate(c.stage3ExceptionId)
+                  }
+                  actionPending={m.isPending}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <VerzugsnachweisDialog
@@ -195,6 +318,37 @@ function ExceptionsPage() {
       />
       <MahnungDialog row={mahnungRow} onClose={() => setMahnungRow(null)} />
     </div>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  label,
+  tone,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  tone?: "critical" | "warning";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "px-3 py-1 text-xs font-medium rounded-full border transition-colors",
+        active
+          ? tone === "critical"
+            ? "bg-red-600 text-white border-red-600"
+            : tone === "warning"
+              ? "bg-orange-600 text-white border-orange-600"
+              : "bg-foreground text-background border-foreground"
+          : "bg-background text-muted-foreground border-border hover:bg-muted",
+      )}
+    >
+      {label}
+    </button>
   );
 }
 
