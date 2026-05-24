@@ -135,6 +135,13 @@ export default function PortfolioMap({
             key={m.id}
             position={[m.lat, m.lng]}
             icon={buildingPin(COLOR[m.status])}
+            eventHandlers={{
+              click: () =>
+                navigate({
+                  to: "/portfolio/$propertyId",
+                  params: { propertyId: m.id },
+                }),
+            }}
           >
             <Tooltip direction="top" opacity={1}>
               <div style={{ lineHeight: 1.4 }}>
