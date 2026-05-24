@@ -310,10 +310,11 @@ function buildIssueAction(
   // issued legally, not when the dunning engine happened to run.
   let issuedDate: string;
   if (stage === 1) {
-    // SEPA chargeback: fires the day of detection (asOf approximates the event).
+    // SEPA chargeback: issued the day of the chargeback (= defaultSinceIso,
+    // which the caller has already set to the chargeback date for sepa_chargeback).
     // Normal default: the day the claim first counted as in default.
     issuedDate =
-      trigger === "sepa_chargeback" ? asOf : minIsoDate(defaultSinceIso, asOf);
+      trigger === "sepa_chargeback" ? defaultSinceIso : minIsoDate(defaultSinceIso, asOf);
   } else if (stage === 2) {
     const s1 = claim.existingNotices[1];
     if (!s1) {
