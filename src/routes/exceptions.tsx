@@ -685,11 +685,27 @@ function Field({ label, value, emphasize }: { label: string; value: string; emph
 }
 
 // ---------- Mahnung Letter Dialog ----------
+function lastName(full: string): string {
+  const parts = full.trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : full;
+}
+
+function monthsRangeLabel(notices: DunningNoticeRow[]): string {
+  if (notices.length === 0) return "";
+  if (notices.length === 1) return fmtMonth(notices[0].month);
+  const sorted = notices.slice().sort((a, b) => a.month.localeCompare(b.month));
+  return `${fmtMonth(sorted[0].month)} – ${fmtMonth(sorted[sorted.length - 1].month)}`;
+}
+
 function MahnungDialog({
   row,
   onClose,
 }: {
-  row: { tenant: TenantCase; notice: DunningNoticeRow } | null;
+  row: {
+    tenant: TenantCase;
+    stage: 1 | 2 | 3;
+    notices: DunningNoticeRow[];
+  } | null;
   onClose: () => void;
 }) {
   if (!row) {
@@ -699,24 +715,37 @@ function MahnungDialog({
       </Dialog>
     );
   }
-  const { tenant, notice } = row;
-  const stage = notice.stage;
-  const s = notice.snapshot;
-  const days = s?.default_days_calendar ?? 0;
-  const interest = notice.defaultInterestSnapshot;
-  const total = notice.amount + notice.mahngebuehr + interest;
-
-  // Previous Stage-1 notice for Stage-2 letter
-  const stage1Notice = tenant.notices.find(
-    (n) => n.stage === 1 && n.rentObligationId === notice.rentObligationId,
+  const { tenant, stage, notices } = row;
+  const sortedNotices = notices.slice().sort((a, b) => a.month.localeCompare(b.month));
+  const latest = sortedNotices.reduce((acc, n) =>
+    n.issuedDate > acc.issuedDate ? n : acc,
   );
+  const oldest = sortedNotices[0];
+
+  const sumHaupt = sortedNotices.reduce((s, n) => s + n.amount, 0);
+  const sumFees = sortedNotices.reduce((s, n) => s + n.mahngebuehr, 0);
+  const sumInterest = sortedNotices.reduce(
+    (s, n) => s + n.defaultInterestSnapshot,
+    0,
+  );
+  const total = sumHaupt + sumFees + sumInterest;
+
+  const snap = latest.snapshot;
+  const interestRate =
+    (snap?.basiszinssatz ?? 0.0327) +
+    (snap?.default_interest_surcharge ?? 0.05);
+
+  // For stage 2, reference the earliest matching stage-1 notice
+  const stage1Ref = tenant.notices.find((n) => n.stage === 1);
+
+  const monthsLabel = monthsRangeLabel(sortedNotices);
 
   const introText =
     stage === 1
-      ? `Trotz Fälligkeit am ${fmtDateLong(notice.dueDate)} ist Ihre Mietzahlung für ${fmtMonth(notice.month)} in Höhe von ${fmtEur(notice.amount)} bei uns nicht eingegangen. Wir möchten Sie höflich daran erinnern und bitten um umgehende Begleichung.`
+      ? `Trotz Fälligkeit ist Ihre Mietzahlung für ${monthsLabel} in Höhe von ${fmtEur(sumHaupt)} bei uns nicht eingegangen. Wir möchten Sie höflich daran erinnern und bitten um umgehende Begleichung.`
       : stage === 2
-        ? `Trotz unserer ersten Zahlungserinnerung vom ${fmtDateLong(stage1Notice?.issuedDate ?? notice.issuedDate)} ist die Mietzahlung für ${fmtMonth(notice.month)} weiterhin offen. Wir fordern Sie hiermit ausdrücklich zur Zahlung auf.`
-        : `Letzte Zahlungsaufforderung vor Einleitung rechtlicher Schritte. Trotz zweier Mahnungen sind Ihre Zahlungsrückstände auf ${fmtEur(tenant.gesamtsaldo)} angewachsen — dies entspricht mehr als zwei Monatsmieten und erfüllt damit die Voraussetzungen für eine fristlose Kündigung nach § 543 Abs. 2 Nr. 3 BGB.`;
+        ? `Trotz unserer ersten Zahlungserinnerung${stage1Ref ? ` vom ${fmtDateLong(stage1Ref.issuedDate)}` : ""} sind Ihre Mietzahlungen für ${monthsLabel} weiterhin offen. Wir fordern Sie hiermit ausdrücklich zur Zahlung auf.`
+        : `Letzte Zahlungsaufforderung vor Einleitung rechtlicher Schritte. Trotz mehrerer Mahnungen sind Ihre Zahlungsrückstände auf ${fmtEur(tenant.gesamtsaldo)} angewachsen — dies entspricht mehr als zwei Monatsmieten und erfüllt damit die Voraussetzungen für eine fristlose Kündigung nach § 543 Abs. 2 Nr. 3 BGB.`;
 
   const closingText =
     stage === 1
@@ -725,7 +754,15 @@ function MahnungDialog({
         ? "Bei weiterer Nichtzahlung müssen wir rechtliche Schritte einleiten."
         : "Wir setzen Ihnen eine letzte Frist von 14 Tagen. Andernfalls werden wir das Mietverhältnis fristlos kündigen und unsere Forderungen gerichtlich durchsetzen.";
 
-  const subject = `${stage}. Mahnung — Mietzahlung ${fmtMonth(notice.month)}`;
+  const subject =
+    sortedNotices.length === 1
+      ? `${stage}. Mahnung — Mietzahlung ${monthsLabel}`
+      : `${stage}. Mahnung — Mietzahlungen ${monthsLabel} (${sortedNotices.length} Monate)`;
+
+  const totalDays = sortedNotices.reduce(
+    (s, n) => s + (n.snapshot?.default_days_calendar ?? 0),
+    0,
+  );
 
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
@@ -734,9 +771,7 @@ function MahnungDialog({
           <DialogTitle className="text-xl">
             Mahnung Stufe {stage} · {tenant.tenantName}
           </DialogTitle>
-          <DialogDescription>
-            Vorschau · {fmtMonth(notice.month)}
-          </DialogDescription>
+          <DialogDescription>Vorschau · {monthsLabel}</DialogDescription>
         </DialogHeader>
 
         <div className="mahnung-letter bg-white text-black p-10 text-[13px] leading-relaxed font-serif">
@@ -749,13 +784,13 @@ function MahnungDialog({
               </div>
             </div>
             <div className="text-xs text-neutral-700">
-              Berlin, {fmtDateLong(notice.issuedDate)}
+              Berlin, {fmtDateLong(latest.issuedDate)}
             </div>
           </div>
 
           {/* Empfänger */}
           <div className="mb-10 text-[13px]">
-            <div>{tenant.tenantName}</div>
+            <div className="font-semibold">{tenant.tenantName}</div>
             <div>{tenant.unitLabel}</div>
             {tenant.propertyStreet && <div>{tenant.propertyStreet}</div>}
             {(tenant.propertyPostalCode || tenant.propertyCity) && (
@@ -769,7 +804,9 @@ function MahnungDialog({
           <div className="font-bold mb-6">Betreff: {subject}</div>
 
           {/* Anrede */}
-          <div className="mb-4">Sehr geehrte/r Herr/Frau {tenant.tenantName},</div>
+          <div className="mb-4">
+            Sehr geehrte/r Herr/Frau {lastName(tenant.tenantName)},
+          </div>
 
           {/* Intro */}
           <p className="mb-6 text-justify">{introText}</p>
@@ -778,13 +815,20 @@ function MahnungDialog({
           <div className="mb-6">
             <div className="font-semibold mb-2">Aufstellung:</div>
             <div className="font-mono text-[12px] space-y-1">
-              <Row label={`Hauptforderung (Miete ${fmtMonth(notice.month)})`} value={fmtEur(notice.amount)} />
-              <Row label={`Mahngebühr Stufe ${stage}`} value={fmtEur(notice.mahngebuehr)} />
+              {sortedNotices.map((n) => (
+                <Row
+                  key={n.id}
+                  label={`Hauptforderung (Miete ${fmtMonth(n.month)})`}
+                  value={fmtEur(n.amount)}
+                />
+              ))}
               <Row
-                label={`Verzugszinsen (${fmtPct(
-                  (s?.basiszinssatz ?? 0.0327) + (s?.default_interest_surcharge ?? 0.05),
-                )} p.a., ${days} Tage)`}
-                value={fmtEur(interest)}
+                label={`Mahngebühr Stufe ${stage}${sortedNotices.length > 1 ? ` (${sortedNotices.length} Monate)` : ""}`}
+                value={fmtEur(sumFees)}
+              />
+              <Row
+                label={`Verzugszinsen (${fmtPct(interestRate)} p.a., ${totalDays} Tage gesamt)`}
+                value={fmtEur(sumInterest)}
               />
               <div className="border-t border-black mt-2 pt-1 flex justify-between font-bold">
                 <span>Gesamtforderung:</span>
@@ -795,9 +839,12 @@ function MahnungDialog({
 
           <p className="mb-6">
             Bitte begleichen Sie den offenen Betrag bis spätestens{" "}
-            <span className="font-semibold">{fmtDateLong(notice.deadlineDate)}</span> auf das
-            folgende Konto: <span className="font-mono">DE00 0000 0000 0000 0000 00</span>,
-            BIC: <span className="font-mono">DEMOXXXX</span>.
+            <span className="font-semibold">
+              {fmtDateLong(latest.deadlineDate)}
+            </span>{" "}
+            auf das folgende Konto:{" "}
+            <span className="font-mono">DE00 0000 0000 0000 0000 00</span>, BIC:{" "}
+            <span className="font-mono">DEMOXXXX</span>.
           </p>
 
           <p className="mb-10 text-justify">{closingText}</p>
@@ -809,7 +856,9 @@ function MahnungDialog({
         </div>
 
         <DialogFooter className="border-t border-border pt-4 print:hidden">
-          <Button variant="outline" onClick={onClose}>Schließen</Button>
+          <Button variant="outline" onClick={onClose}>
+            Schließen
+          </Button>
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="h-4 w-4 mr-2" />
             Drucken
