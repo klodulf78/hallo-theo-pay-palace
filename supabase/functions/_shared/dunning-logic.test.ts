@@ -74,16 +74,26 @@ describe("computeDefaultInterest (§ 288 Abs. 1 BGB)", () => {
 });
 
 describe("Stage 1 trigger", () => {
-  it("fires on default_since (T+1 WT after contractual deadline)", () => {
+  it("fires on default_since (T+1 WT after contractual deadline) with historical issued_date", () => {
     // due_day=null → deadline = Tue 5 May. default_since = +1 WT = Wed 6 May.
-    const action = decideClaimAction(baseClaim(), NO_ARREARS, POLICY, null, "2026-05-06");
+    // Run dunning later (15 May) — issued_date should backdate to default_since.
+    const action = decideClaimAction(baseClaim(), NO_ARREARS, POLICY, null, "2026-05-15");
     expect(action.kind).toBe("issue_stage");
     if (action.kind === "issue_stage") {
       expect(action.stage).toBe(1);
       expect(action.mahngebuehr).toBe(5);
       expect(action.newDefaultSince).toBe("2026-05-06");
+      expect(action.issuedDate).toBe("2026-05-06");
       // deadline = issued + 14 WT = Wed 6 May + 14 WT = Tue 26 May
       expect(action.deadlineDate).toBe("2026-05-26");
+    }
+  });
+  it("caps issued_date at asOf when defaultSince is in the future of the run", () => {
+    // Run on default_since day itself → issued = asOf = default_since.
+    const action = decideClaimAction(baseClaim(), NO_ARREARS, POLICY, null, "2026-05-06");
+    expect(action.kind).toBe("issue_stage");
+    if (action.kind === "issue_stage") {
+      expect(action.issuedDate).toBe("2026-05-06");
     }
   });
   it("does NOT fire before default_since", () => {
@@ -105,6 +115,8 @@ describe("Stage 1 trigger", () => {
       // Chargeback fee added.
       expect(action.mahngebuehr).toBe(10);
       expect(action.verzugsnachweis.trigger).toBe("sepa_chargeback");
+      // SEPA chargeback: issued_date stays at asOf (chargeback detection day).
+      expect(action.issuedDate).toBe("2026-05-04");
     }
   });
 });
