@@ -410,15 +410,21 @@ function TenantCaseCard({
             {c.propertyName} · {c.unitLabel}
           </div>
         </div>
-        <Badge
-          variant="outline"
-          className={cn(
-            "capitalize text-xs",
-            severityStyle[c.severity] ?? severityStyle.low,
-          )}
-        >
-          {c.severity}
-        </Badge>
+        {(() => {
+          const maxStage = c.notices.reduce((m, n) => Math.max(m, n.stage), 0);
+          const derived =
+            maxStage >= 3 ? "critical" : maxStage === 2 ? "medium" : maxStage === 1 ? "low" : "low";
+          const label =
+            derived === "critical" ? "Critical" : derived === "medium" ? "Medium" : "Low";
+          return (
+            <Badge
+              variant="outline"
+              className={cn("text-xs", severityStyle[derived] ?? severityStyle.low)}
+            >
+              {label}
+            </Badge>
+          );
+        })()}
       </div>
 
       {/* Saldo block */}
