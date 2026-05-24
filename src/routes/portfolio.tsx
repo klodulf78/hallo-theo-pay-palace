@@ -9,6 +9,7 @@ import { ResetDemoCard } from "@/components/reset-demo-card";
 import { DemoControlsCard } from "@/components/demo-controls-card";
 import { DunningStatusCard } from "@/components/validation-panels";
 import { RecentEventsCard } from "@/components/recent-events-card";
+import { useLang, formatDate } from "@/lib/use-language";
 
 const PortfolioMap = lazy(() => import("@/components/portfolio-map"));
 
@@ -41,6 +42,7 @@ function fmtDemoDate(iso: string | null | undefined): string {
 
 function DemoDateStrip() {
   const fn = useServerFn(getPortfolioKpis);
+  const { lang, t } = useLang();
   const { data } = useQuery({
     queryKey: ["portfolio-kpis"],
     queryFn: () => fn(),
@@ -49,13 +51,13 @@ function DemoDateStrip() {
   return (
     <div className="rounded-lg border border-border bg-card px-6 py-4 shadow-sm">
       <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Demo-Datum
+        {t("dashboard.demoDate")}
       </div>
       <div className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-primary">
-        {fmtDemoDate(data?.simulatedNow)}
+        {formatDate(data?.simulatedNow ?? null, lang)}
       </div>
       <div className="text-xs text-muted-foreground mt-0.5">
-        Simulationszeitpunkt
+        {t("dashboard.simulationTime")}
       </div>
     </div>
   );
@@ -63,6 +65,7 @@ function DemoDateStrip() {
 
 function PortfolioPage() {
   const fn = useServerFn(getPortfolio);
+  const { t } = useLang();
   const { data } = useQuery({
     queryKey: ["portfolio"],
     queryFn: () => fn(),
@@ -74,12 +77,8 @@ function PortfolioPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Dashboard · Deutschland
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Live-Übersicht aller verwalteten Objekte
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("dashboard.title")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("dashboard.subtitle")}</p>
       </header>
 
       <DemoDateStrip />
@@ -91,7 +90,7 @@ function PortfolioPage() {
           <Suspense
             fallback={
               <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                Lade Karte…
+                {t("dashboard.mapLoading")}
               </div>
             }
           >
@@ -99,7 +98,7 @@ function PortfolioPage() {
           </Suspense>
         ) : (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-            Lade Karte…
+            {t("dashboard.mapLoading")}
           </div>
         )}
       </div>
