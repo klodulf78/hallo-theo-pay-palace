@@ -371,11 +371,32 @@ function TenantCaseCard({
 }: {
   c: TenantCase;
   onOpenVerzugsnachweis: (n: DunningNoticeRow) => void;
-  onOpenMahnung: (n: DunningNoticeRow) => void;
+  onOpenMahnung: (stage: 1 | 2 | 3, notices: DunningNoticeRow[]) => void;
   onAction: () => void;
   actionPending: boolean;
 }) {
   const hasStage3 = c.notices.some((n) => n.stage === 3);
+
+  const stageGroups = useMemo(() => {
+    const byStage = new Map<1 | 2 | 3, DunningNoticeRow[]>();
+    for (const n of c.notices) {
+      const arr = byStage.get(n.stage) ?? [];
+      arr.push(n);
+      byStage.set(n.stage, arr);
+    }
+    return ([3, 2, 1] as const)
+      .filter((s) => byStage.has(s))
+      .map((stage) => {
+        const notices = (byStage.get(stage) ?? []).slice().sort((a, b) =>
+          a.month.localeCompare(b.month),
+        );
+        const latest = notices.reduce((acc, n) =>
+          n.issuedDate > acc.issuedDate ? n : acc,
+        );
+        const sumFee = notices.reduce((s, n) => s + n.mahngebuehr, 0);
+        return { stage, notices, latest, sumFee };
+      });
+  }, [c.notices]);
 
   return (
     <Card className="p-6 border-border shadow-sm space-y-5">
@@ -416,42 +437,44 @@ function TenantCaseCard({
         </div>
       </div>
 
-      {/* Notices list */}
-      {c.notices.length > 0 && (
+      {/* Mahnstufen — eine Zeile pro Stufe */}
+      {stageGroups.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs uppercase tracking-wide font-semibold text-muted-foreground">
             Mahnstufen
           </div>
           <div className="rounded-md border border-border divide-y divide-border">
-            {c.notices.map((n) => (
+            {stageGroups.map((g) => (
               <div
-                key={n.id}
+                key={g.stage}
                 className="px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2"
               >
                 <Badge
                   variant="outline"
-                  className={cn("font-semibold", stageStyle[n.stage])}
+                  className={cn("font-semibold", stageStyle[g.stage])}
                 >
-                  Stufe {n.stage}
+                  Stufe {g.stage}
                 </Badge>
-                <div className="text-sm font-medium min-w-[120px]">
-                  {fmtMonth(n.month)}
+                <div className="text-sm font-medium min-w-[180px]">
+                  {g.notices.length === 1
+                    ? fmtMonth(g.notices[0].month)
+                    : `${g.notices.length} Monate: ${g.notices.map((n) => fmtMonth(n.month)).join(", ")}`}
                 </div>
                 <div className="text-xs text-muted-foreground tabular-nums">
-                  Ausgestellt {fmtDateLong(n.issuedDate)}
+                  Zuletzt ausgestellt {fmtDateLong(g.latest.issuedDate)}
                 </div>
                 <div className="text-xs text-muted-foreground tabular-nums">
-                  Frist {fmtDateLong(n.deadlineDate)}
+                  Frist {fmtDateLong(g.latest.deadlineDate)}
                 </div>
                 <div className="text-xs tabular-nums">
-                  Gebühr{" "}
-                  <span className="font-medium">{fmtEur(n.mahngebuehr)}</span>
+                  Gebühren{" "}
+                  <span className="font-medium">{fmtEur(g.sumFee)}</span>
                 </div>
                 <div className="ml-auto flex gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onOpenMahnung(n)}
+                    onClick={() => onOpenMahnung(g.stage, g.notices)}
                   >
                     <Mail className="h-3.5 w-3.5 mr-1.5" />
                     Mahnung herunterladen
@@ -459,7 +482,7 @@ function TenantCaseCard({
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onOpenVerzugsnachweis(n)}
+                    onClick={() => onOpenVerzugsnachweis(g.latest)}
                   >
                     Verzugsnachweis ansehen
                   </Button>
