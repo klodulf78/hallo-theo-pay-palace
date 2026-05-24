@@ -65,7 +65,7 @@ export function LiveStateCard() {
           Aktuelle Row-Counts · Auto-Refresh alle 3 s
         </p>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {Object.entries(LABELS).map(([k, label]) => (
           <div
             key={k}
