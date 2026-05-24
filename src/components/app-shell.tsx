@@ -2,8 +2,6 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   AlertTriangle,
-  Activity,
-  UserCircle2,
   Building2,
   Workflow,
 } from "lucide-react";
@@ -13,8 +11,6 @@ const NAV = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
   { label: "Demo-Ablauf", to: "/demo-flow", icon: Workflow },
   { label: "Exceptions", to: "/exceptions", icon: AlertTriangle },
-  { label: "Activity", to: "/activity", icon: Activity },
-  { label: "Tenant Portal", to: "/tenant-portal", icon: UserCircle2 },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
