@@ -93,10 +93,20 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
     const open = Math.max(expected - received, 0);
     const percentIn = expected > 0 ? (received / expected) * 100 : 0;
 
-    const stages = { 1: 0, 2: 0, 3: 0 } as Record<number, number>;
-    for (const d of dunningRes.data ?? []) {
-      const s = Number(d.stage);
-      if (stages[s] != null) stages[s]++;
+    // Group active dunning rent_obligations by tenant → highest stage per tenant.
+    const tenantMaxStage = new Map<string, number>();
+    for (const r of dunningObRes.data ?? []) {
+      const s = Number(r.dunning_stage);
+      const cur = tenantMaxStage.get(r.tenant_id) ?? 0;
+      if (s > cur) tenantMaxStage.set(r.tenant_id, s);
+    }
+    let mahnung = 0;
+    let eskalation = 0;
+    let maxStage = 0;
+    for (const s of tenantMaxStage.values()) {
+      if (s >= 3) eskalation++;
+      else if (s >= 1) mahnung++;
+      if (s > maxStage) maxStage = s;
     }
 
     const totalUnits = units.length;
