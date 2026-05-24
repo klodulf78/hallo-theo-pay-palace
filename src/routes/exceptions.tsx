@@ -109,10 +109,10 @@ const fmtPct = (n: number, d = 2) =>
   `${(n * 100).toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d })}\u00a0%`;
 
 const severityStyle: Record<string, string> = {
-  critical: "bg-red-500/15 text-red-700 border-red-500/30",
-  high: "bg-orange-500/15 text-orange-700 border-orange-500/30",
-  medium: "bg-amber-500/15 text-amber-800 border-amber-500/30",
-  low: "bg-muted text-muted-foreground border-border",
+  critical: "bg-red-500/15 text-red-700 border-red-500/40",
+  high: "bg-orange-500/15 text-orange-700 border-orange-500/40",
+  medium: "bg-orange-500/15 text-orange-700 border-orange-500/40",
+  low: "bg-yellow-500/15 text-yellow-800 border-yellow-500/40",
 };
 
 const stageStyle: Record<number, string> = {
