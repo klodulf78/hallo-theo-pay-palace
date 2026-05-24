@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MapContainer, GeoJSON, CircleMarker, Tooltip } from "react-leaflet";
+import { MapContainer, GeoJSON, Marker, Tooltip } from "react-leaflet";
 import L from "leaflet";
 import { feature } from "topojson-client";
 import type { Topology, GeometryCollection } from "topojson-specification";
@@ -17,8 +17,51 @@ const COLOR: Record<PropertyMarker["status"], string> = {
 };
 
 const germanyBounds = L.latLngBounds([47.27, 5.87], [55.06, 15.04]);
-
 const TOPO_URL = "https://unpkg.com/world-atlas@2/countries-50m.json";
+
+// Lucide Building2 SVG path (24x24 viewBox)
+const BUILDING_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v8h4"/><path d="M18 9h2a2 2 0 0 1 2 2v11h-4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>`;
+
+function buildingPin(color: string): L.DivIcon {
+  const html = `
+    <div style="
+      position: relative;
+      width: 32px;
+      height: 42px;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+    ">
+      <div style="
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 32px;
+        height: 32px;
+        background: ${color};
+        border: 2px solid #ffffff;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+      "></div>
+      <div style="
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      ">
+        <div style="width:16px;height:16px;">${BUILDING_SVG.replace('viewBox="0 0 24 24"', 'viewBox="0 0 24 24" width="16" height="16"')}</div>
+      </div>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: "building-pin",
+    iconSize: [32, 42],
+    iconAnchor: [16, 42],
+    tooltipAnchor: [0, -38],
+  });
+}
 
 function isGermany(f: GeoJSON.Feature): boolean {
   return (
@@ -54,7 +97,10 @@ export default function PortfolioMap({
 
   return (
     <>
-      <style>{`.leaflet-container { background-color: #f8fafc; }`}</style>
+      <style>{`
+        .leaflet-container { background-color: #f8fafc; }
+        .building-pin { background: transparent !important; border: none !important; }
+      `}</style>
       <MapContainer
         bounds={germanyBounds}
         maxBounds={germanyBounds}
@@ -68,65 +114,38 @@ export default function PortfolioMap({
           <GeoJSON
             data={geo}
             style={(f) => {
-              if (f && isGermany(f)) {
-                return {
-                  fillColor: "#e0e7ff",
-                  fillOpacity: 0.6,
-                  color: "#000000",
-                  weight: 1.2,
-                  opacity: 1,
-                  lineJoin: "round",
-                  lineCap: "round",
-                };
-              }
-              return {
-                fillColor: "#ffffff",
-                fillOpacity: 0.5,
+              const base = {
                 color: "#000000",
                 weight: 1.2,
                 opacity: 1,
-                lineJoin: "round",
-                lineCap: "round",
+                lineJoin: "round" as const,
+                lineCap: "round" as const,
               };
+              if (f && isGermany(f)) {
+                return { ...base, fillColor: "#e0e7ff", fillOpacity: 0.6 };
+              }
+              return { ...base, fillColor: "#ffffff", fillOpacity: 0.5 };
             }}
           />
         ) : null}
         {markers.map((m) => (
-          <CircleMarker
+          <Marker
             key={m.id}
-            center={[m.lat, m.lng]}
-            radius={10}
-            pathOptions={{
-              color: "#1f2937",
-              fillColor: COLOR[m.status],
-              fillOpacity: 0.85,
-              weight: 2,
-            }}
+            position={[m.lat, m.lng]}
+            icon={buildingPin(COLOR[m.status])}
           >
-            <Tooltip direction="top" offset={[0, -8]} opacity={1}>
-              {m.name} · {m.unitCount} Einheiten · {m.dunningCount} in Mahnung
+            <Tooltip direction="top" opacity={1}>
+              <div style={{ lineHeight: 1.4 }}>
+                <div style={{ fontWeight: 700 }}>{m.name}</div>
+                {m.street ? <div>{m.street}</div> : null}
+                {m.city ? <div>{m.city}</div> : null}
+                <div>{m.unitCount} Einheiten</div>
+                <div>{m.dunningCount} in Mahnung</div>
+              </div>
             </Tooltip>
-          </CircleMarker>
+          </Marker>
         ))}
-        {!geo ? (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 500,
-              pointerEvents: "none",
-              color: "#64748b",
-              fontSize: 14,
-            }}
-          >
-            Karte wird geladen…
-          </div>
-        ) : null}
       </MapContainer>
     </>
   );
 }
-
