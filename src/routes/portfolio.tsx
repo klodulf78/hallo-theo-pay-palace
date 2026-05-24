@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getPortfolio } from "@/lib/portfolio.functions";
+import { PortfolioKpiCards } from "@/components/portfolio-kpi-cards";
+import { ResetDemoCard } from "@/components/reset-demo-card";
 
 const PortfolioMap = lazy(() => import("@/components/portfolio-map"));
 
@@ -26,14 +28,13 @@ export const Route = createFileRoute("/portfolio")({
 
 function PortfolioPage() {
   const fn = useServerFn(getPortfolio);
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: ["portfolio"],
     queryFn: () => fn(),
+    refetchInterval: 5000,
   });
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-
-  const s = data?.summary;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -41,12 +42,12 @@ function PortfolioPage() {
         <h1 className="text-3xl font-semibold tracking-tight">
           Portfolio · Deutschland
         </h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          {s
-            ? `${s.properties} Properties · ${s.tenants} Mieter · ${s.mrr.toLocaleString("de-DE")}€ MRR · ${s.activeExceptions} aktive Eskalationen`
-            : "Lade Aggregate…"}
+        <p className="text-sm text-muted-foreground mt-1">
+          Live-Übersicht aller verwalteten Objekte
         </p>
       </header>
+
+      <PortfolioKpiCards />
 
       <div className="rounded-lg overflow-hidden border border-border shadow-sm bg-muted h-[70vh]">
         {mounted && data ? (
@@ -61,10 +62,12 @@ function PortfolioPage() {
           </Suspense>
         ) : (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-            {isLoading ? "Lade Daten…" : "Lade Karte…"}
+            Lade Karte…
           </div>
         )}
       </div>
+
+      <ResetDemoCard />
     </div>
   );
 }
