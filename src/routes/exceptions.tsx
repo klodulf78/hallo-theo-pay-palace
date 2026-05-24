@@ -320,12 +320,6 @@ function ExceptionsPage() {
         onClose={() => setVerzugsRow(null)}
       />
       <MahnungDialog row={mahnungRow} onClose={() => setMahnungRow(null)} />
-
-      <VerzugsnachweisDialog
-        row={verzugsRow}
-        onClose={() => setVerzugsRow(null)}
-      />
-      <MahnungDialog row={mahnungRow} onClose={() => setMahnungRow(null)} />
     </div>
   );
 }
