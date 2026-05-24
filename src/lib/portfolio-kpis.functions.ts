@@ -29,13 +29,16 @@ function monthKey(d: string): string {
 
 export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
   async (): Promise<PortfolioKpis> => {
-    const [grRes, propsRes, unitsRes, tenantsRes, dunningRes] =
+    const [grRes, propsRes, unitsRes, tenantsRes, dunningObRes] =
       await Promise.all([
         supabaseAdmin.from("guardrails").select("simulated_now").maybeSingle(),
         supabaseAdmin.from("properties").select("id, city"),
         supabaseAdmin.from("units").select("id, target_rent"),
         supabaseAdmin.from("tenants").select("id, unit_id, rent_amount"),
-        supabaseAdmin.from("dunning_notices").select("stage"),
+        supabaseAdmin
+          .from("rent_obligations")
+          .select("tenant_id, dunning_stage")
+          .gt("dunning_stage", 0),
       ]);
 
     const simulatedNow =
