@@ -101,12 +101,14 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
       const cur = tenantMaxStage.get(r.tenant_id) ?? 0;
       if (s > cur) tenantMaxStage.set(r.tenant_id, s);
     }
-    let mahnung = 0;
-    let eskalation = 0;
+    let stage1 = 0;
+    let stage2 = 0;
+    let stage3 = 0;
     let maxStage = 0;
     for (const s of tenantMaxStage.values()) {
-      if (s >= 3) eskalation++;
-      else if (s >= 1) mahnung++;
+      if (s >= 3) stage3++;
+      else if (s === 2) stage2++;
+      else if (s === 1) stage1++;
       if (s > maxStage) maxStage = s;
     }
 
