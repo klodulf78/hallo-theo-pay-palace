@@ -72,15 +72,21 @@ export default function PortfolioMap({
                 return {
                   fillColor: "#e0e7ff",
                   fillOpacity: 0.6,
-                  color: "#1e293b",
-                  weight: 2,
+                  color: "#000000",
+                  weight: 1.2,
+                  opacity: 1,
+                  lineJoin: "round",
+                  lineCap: "round",
                 };
               }
               return {
                 fillColor: "#ffffff",
                 fillOpacity: 0.5,
-                color: "#e2e8f0",
-                weight: 0.5,
+                color: "#000000",
+                weight: 1.2,
+                opacity: 1,
+                lineJoin: "round",
+                lineCap: "round",
               };
             }}
           />
