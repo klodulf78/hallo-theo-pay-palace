@@ -6,6 +6,7 @@ type Seed = {
   lat: number;
   lng: number;
   postal_code: string;
+  rentRange: [number, number];
   properties: { name: string; street: string }[];
 };
 
@@ -15,12 +16,10 @@ const SEEDS: Seed[] = [
     lat: 52.52,
     lng: 13.405,
     postal_code: "10115",
+    rentRange: [800, 1400],
     properties: [
       { name: "Hallo Theo · Berlin Mitte", street: "Torstraße 12" },
-      {
-        name: "Hallo Theo · Berlin Prenzlauer Berg",
-        street: "Kastanienallee 45",
-      },
+      { name: "Hallo Theo · Berlin Prenzlauer Berg", street: "Kastanienallee 45" },
       { name: "Hallo Theo · Berlin Kreuzberg", street: "Oranienstraße 78" },
     ],
   },
@@ -29,16 +28,11 @@ const SEEDS: Seed[] = [
     lat: 48.1351,
     lng: 11.582,
     postal_code: "80331",
+    rentRange: [800, 1400],
     properties: [
       { name: "Hallo Theo · München Schwabing", street: "Leopoldstraße 22" },
-      {
-        name: "Hallo Theo · München Maxvorstadt",
-        street: "Türkenstraße 56",
-      },
-      {
-        name: "Hallo Theo · München Glockenbachviertel",
-        street: "Müllerstraße 33",
-      },
+      { name: "Hallo Theo · München Maxvorstadt", street: "Türkenstraße 56" },
+      { name: "Hallo Theo · München Glockenbachviertel", street: "Müllerstraße 33" },
     ],
   },
   {
@@ -46,16 +40,19 @@ const SEEDS: Seed[] = [
     lat: 50.1109,
     lng: 8.6821,
     postal_code: "60313",
+    rentRange: [600, 1200],
     properties: [
       { name: "Hallo Theo · Frankfurt Bornheim", street: "Berger Straße 110" },
-      {
-        name: "Hallo Theo · Frankfurt Sachsenhausen",
-        street: "Schweizer Straße 64",
-      },
+      { name: "Hallo Theo · Frankfurt Sachsenhausen", street: "Schweizer Straße 64" },
       { name: "Hallo Theo · Frankfurt Westend", street: "Bockenheimer Landstraße 24" },
     ],
   },
 ];
+
+function randomRent([min, max]: [number, number]): number {
+  const raw = min + Math.random() * (max - min);
+  return Math.round(raw / 10) * 10;
+}
 
 export const seedDemoPortfolio = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ properties: number; units: number; tenants: number }> => {
@@ -86,7 +83,7 @@ export const seedDemoPortfolio = createServerFn({ method: "POST" }).handler(
       await supabaseAdmin.from("properties").delete().in("id", priorIds);
     }
 
-    const jitter = () => (Math.random() - 0.5) * 0.6; // ±0.30° ≈ ±30km
+    const jitter = () => (Math.random() - 0.5) * 0.6; // ±0.30°
     let totalProps = 0;
     let totalUnits = 0;
 
@@ -111,6 +108,7 @@ export const seedDemoPortfolio = createServerFn({ method: "POST" }).handler(
         const unitRows = [1, 2, 3, 4].map((i) => ({
           property_id: prop.id,
           label: `WE-${String(i).padStart(3, "0")}`,
+          target_rent: randomRent(s.rentRange),
         }));
         const { error: uErr } = await supabaseAdmin
           .from("units")
@@ -119,6 +117,12 @@ export const seedDemoPortfolio = createServerFn({ method: "POST" }).handler(
         totalUnits += unitRows.length;
       }
     }
+
+    // Backfill any existing units (e.g. original demo) without target_rent.
+    await supabaseAdmin
+      .from("units")
+      .update({ target_rent: 1000 })
+      .is("target_rent", null);
 
     return { properties: totalProps, units: totalUnits, tenants: 0 };
   },
