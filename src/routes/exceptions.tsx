@@ -912,11 +912,11 @@ function MahnungDialog({
           <Button variant="outline" onClick={onClose}>
             Schließen
           </Button>
-          <Button variant="outline" onClick={printLetter}>
-            <Printer className="h-4 w-4 mr-2" />
-            Drucken
+          <Button variant="outline" onClick={handleDocx}>
+            <FileText className="h-4 w-4 mr-2" />
+            Als Word speichern
           </Button>
-          <Button onClick={printLetter}>
+          <Button onClick={handlePdf}>
             <Download className="h-4 w-4 mr-2" />
             Als PDF speichern
           </Button>
