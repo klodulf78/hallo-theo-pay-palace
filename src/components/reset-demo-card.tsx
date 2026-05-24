@@ -18,6 +18,7 @@ import { seedDemoPortfolio } from "@/lib/seed-portfolio.functions";
 
 export function ResetDemoCard() {
   const [open, setOpen] = useState(false);
+  const [seedOpen, setSeedOpen] = useState(false);
   const qc = useQueryClient();
   const resetFn = useServerFn(resetDemo);
   const seedFn = useServerFn(seedDemoPortfolio);
