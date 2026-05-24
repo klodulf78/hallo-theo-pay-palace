@@ -74,7 +74,19 @@ export const seedDemoPortfolio = createServerFn({ method: "POST" }).handler(
       owner = data;
     }
 
-    const jitter = () => (Math.random() - 0.5) * 0.04;
+    // Idempotent: remove prior seeded properties (keep the original demo property).
+    const { data: priorProps } = await supabaseAdmin
+      .from("properties")
+      .select("id, name")
+      .like("name", "Hallo Theo · %")
+      .neq("name", "Hallo Theo · Berlin Mitte Portfolio");
+    const priorIds = (priorProps ?? []).map((p) => p.id);
+    if (priorIds.length > 0) {
+      await supabaseAdmin.from("units").delete().in("property_id", priorIds);
+      await supabaseAdmin.from("properties").delete().in("id", priorIds);
+    }
+
+    const jitter = () => (Math.random() - 0.5) * 0.3; // ±0.15° ≈ ±15km
     let totalProps = 0;
     let totalUnits = 0;
 
