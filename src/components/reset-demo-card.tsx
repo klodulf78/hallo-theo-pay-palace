@@ -46,7 +46,7 @@ export function ResetDemoCard() {
     mutationFn: () => seedFn(),
     onSuccess: (d) => {
       toast.success(
-        `Portfolio geseedet: ${d.properties} Properties, ${d.units} Einheiten, ${d.tenants} Mieter angelegt.`,
+        `Portfolio geseedet: ${d.properties} Properties, ${d.units} leere Einheiten — bereit für Mieter-Onboarding.`,
       );
       qc.invalidateQueries();
     },
