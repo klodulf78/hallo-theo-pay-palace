@@ -301,7 +301,9 @@ function ExceptionsPage() {
                   onOpenVerzugsnachweis={(n) =>
                     setVerzugsRow({ tenant: c, notice: n })
                   }
-                  onOpenMahnung={(n) => setMahnungRow({ tenant: c, notice: n })}
+                  onOpenMahnung={(stage, notices) =>
+                    setMahnungRow({ tenant: c, stage, notices })
+                  }
                   onAction={() =>
                     c.stage3ExceptionId && m.mutate(c.stage3ExceptionId)
                   }
@@ -312,6 +314,12 @@ function ExceptionsPage() {
           )}
         </>
       )}
+
+      <VerzugsnachweisDialog
+        row={verzugsRow}
+        onClose={() => setVerzugsRow(null)}
+      />
+      <MahnungDialog row={mahnungRow} onClose={() => setMahnungRow(null)} />
 
       <VerzugsnachweisDialog
         row={verzugsRow}
