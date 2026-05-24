@@ -173,20 +173,12 @@ function triggerDownload(blob: Blob, filename: string): void {
   a.href = url;
   a.download = filename;
   a.rel = "noopener";
-  // target=_blank ensures downloads work even inside sandboxed preview iframes
+  // target=_blank ensures downloads work inside sandboxed preview iframes
   a.target = "_blank";
   document.body.appendChild(a);
   a.click();
   a.remove();
-  // Fallback: if the download was blocked (iframe sandbox), open the blob in a new tab
-  setTimeout(() => {
-    try {
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch {
-      /* noop */
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-  }, 100);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 /* -------------------- DOCX -------------------- */
