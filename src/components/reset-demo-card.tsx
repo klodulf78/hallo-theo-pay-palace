@@ -16,7 +16,7 @@ import {
 import { resetDemo } from "@/lib/reset-demo.functions";
 import { seedDemoPortfolio } from "@/lib/seed-portfolio.functions";
 
-export function ResetDemoCard() {
+export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
   const [open, setOpen] = useState(false);
   const [seedOpen, setSeedOpen] = useState(false);
   const qc = useQueryClient();
@@ -29,11 +29,11 @@ export function ResetDemoCard() {
       setOpen(false);
       if (d.stripeError) {
         toast.warning(
-          `Demo zurückgesetzt — Supabase clean, Stripe-Cleanup fehlgeschlagen: ${d.stripeError}`,
+          `Demo zurückgesetzt — Daten clean, Stripe-Cleanup fehlgeschlagen: ${d.stripeError}`,
         );
       } else {
         toast.success(
-          `Demo zurückgesetzt — ${d.stripeDeleted} Stripe-Kunden gelöscht. Bereit für nächsten Lauf.`,
+          `Demo zurückgesetzt — ${d.stripeDeleted} Stripe-Kunden gelöscht, ${d.propertiesDeleted ?? 0} Properties entfernt.`,
         );
       }
       qc.invalidateQueries();
@@ -47,9 +47,7 @@ export function ResetDemoCard() {
     mutationFn: () => seedFn(),
     onSuccess: () => {
       setSeedOpen(false);
-      toast.success(
-        "Portfolio neu geseedet: 9 Properties mit erweiterter Streuung — bereit für Mieter-Onboarding.",
-      );
+      toast.success("Portfolio neu geseedet: 9 Properties.");
       qc.invalidateQueries();
     },
     onError: (e: Error) => {
@@ -68,25 +66,26 @@ export function ResetDemoCard() {
                 Danger Zone
               </div>
               <div className="text-xs text-muted-foreground truncate">
-                Löscht alle Demo-Daten (Mieter, Zahlungen, Mahnungen) für einen
-                sauberen Re-Run.
+                Löscht alle Demo-Daten (Mieter, Zahlungen, Mahnungen, Seed-Properties) für einen sauberen Re-Run.
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setSeedOpen(true)}
-              disabled={seedM.isPending || m.isPending}
-            >
-              {seedM.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <MapPin className="h-4 w-4" />
-              )}
-              <span className="ml-1">Demo-Portfolio seeden</span>
-            </Button>
+            {!simple && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSeedOpen(true)}
+                disabled={seedM.isPending || m.isPending}
+              >
+                {seedM.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MapPin className="h-4 w-4" />
+                )}
+                <span className="ml-1">Demo-Portfolio seeden</span>
+              </Button>
+            )}
             <Button
               size="sm"
               variant="destructive"
@@ -109,9 +108,7 @@ export function ResetDemoCard() {
           <DialogHeader>
             <DialogTitle>Demo wirklich zurücksetzen?</DialogTitle>
             <DialogDescription>
-              Alle Mieter, Mietforderungen, Zahlungen, Mahnungen und
-              Eskalationen werden gelöscht. Properties, Owners,
-              Policy-Einstellungen bleiben erhalten.
+              Alle Mieter, Mietforderungen, Zahlungen, Mahnungen, Eskalationen und seed-generierten Properties werden gelöscht. Owners, Policy-Einstellungen und das Original-Demo-Property bleiben erhalten.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -138,38 +135,35 @@ export function ResetDemoCard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={seedOpen} onOpenChange={(o) => !seedM.isPending && setSeedOpen(o)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Demo zurücksetzen + neu seeden?</DialogTitle>
-            <DialogDescription>
-              Bestehende Demo-Properties (außer der Original-Demo) werden gelöscht
-              und 9 neue Properties in Berlin, München und Frankfurt mit
-              erweiterter Streuung (~30 km Radius) angelegt.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setSeedOpen(false)}
-              disabled={seedM.isPending}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              onClick={() => seedM.mutate()}
-              disabled={seedM.isPending}
-            >
-              {seedM.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              ) : (
-                <MapPin className="h-4 w-4 mr-1" />
-              )}
-              Ja, neu seeden
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {!simple && (
+        <Dialog open={seedOpen} onOpenChange={(o) => !seedM.isPending && setSeedOpen(o)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Demo-Portfolio neu seeden?</DialogTitle>
+              <DialogDescription>
+                Bestehende Seed-Properties werden ersetzt durch 9 neue Properties in Berlin, München und Frankfurt.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setSeedOpen(false)}
+                disabled={seedM.isPending}
+              >
+                Abbrechen
+              </Button>
+              <Button onClick={() => seedM.mutate()} disabled={seedM.isPending}>
+                {seedM.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <MapPin className="h-4 w-4 mr-1" />
+                )}
+                Ja, neu seeden
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

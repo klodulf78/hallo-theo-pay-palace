@@ -7,7 +7,14 @@ export type PortfolioKpis = {
   units: { total: number; properties: number; cities: number };
   occupancy: { assigned: number; total: number; percent: number };
   monthlyRent: number;
-  inflow: { received: number; expected: number; open: number; percent: number };
+  inflow: {
+    received: number;
+    expected: number;
+    open: number;
+    percent: number;
+    failed: number;
+    failedPercent: number;
+  };
   dunning: { total: number; stage1: number; stage2: number; stage3: number };
 };
 
@@ -55,7 +62,7 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
       supabaseAdmin
         .from("payment_events")
         .select("amount, occurred_at, type")
-        .eq("type", "succeeded")
+        .in("type", ["succeeded", "failed"])
         .gte("occurred_at", `${month}-01T00:00:00Z`)
         .lt("occurred_at", nextMonthIso(month)),
     ]);
@@ -64,10 +71,16 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
       (s, r) => s + Number(r.amount ?? 0),
       0,
     );
-    const received = (payRes.data ?? []).reduce(
-      (s, r) => s + Number(r.amount ?? 0),
-      0,
-    );
+    const events = payRes.data ?? [];
+    const received = events
+      .filter((e) => e.type === "succeeded")
+      .reduce((s, r) => s + Number(r.amount ?? 0), 0);
+    const failedCount = events.filter((e) => e.type === "failed").length;
+    const succeededCount = events.filter((e) => e.type === "succeeded").length;
+    const totalAttempts = failedCount + succeededCount;
+    const failedPercent =
+      totalAttempts > 0 ? (failedCount / totalAttempts) * 100 : 0;
+
     const open = Math.max(expected - received, 0);
     const percentIn = expected > 0 ? (received / expected) * 100 : 0;
 
@@ -78,7 +91,8 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
     }
 
     const totalUnits = units.length;
-    const occupancyPct = totalUnits > 0 ? (assignedUnits.size / totalUnits) * 100 : 0;
+    const occupancyPct =
+      totalUnits > 0 ? (assignedUnits.size / totalUnits) * 100 : 0;
 
     return {
       simulatedNow,
@@ -99,6 +113,8 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
         expected,
         open,
         percent: percentIn,
+        failed: failedCount,
+        failedPercent,
       },
       dunning: {
         total: (dunningRes.data ?? []).length,

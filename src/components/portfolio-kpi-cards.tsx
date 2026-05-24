@@ -54,28 +54,41 @@ export function PortfolioKpiCards() {
     );
   }
 
+  // Occupancy color
+  const occPct = data.occupancy.percent;
   const occColor =
-    data.occupancy.percent > 90
-      ? "text-emerald-600"
-      : data.occupancy.percent >= 70
-        ? "text-amber-600"
-        : "text-red-600";
+    data.occupancy.assigned === 0
+      ? "text-muted-foreground"
+      : occPct >= 100
+        ? "text-emerald-600"
+        : occPct >= 50
+          ? "text-amber-600"
+          : "text-red-600";
 
-  const hasOpen = data.inflow.open > 0.01;
   const hasStage3 = data.dunning.stage3 > 0;
+
+  // Inflow card colors
+  const failedCount = data.inflow.failed;
+  const failedPct = data.inflow.failedPercent;
+  const inflowSubColor =
+    failedCount > 0 && failedPct > 25
+      ? "text-red-600"
+      : failedCount > 0
+        ? "text-amber-600"
+        : undefined;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
       <StatCard
         label="Einheiten gesamt"
         value={fmt(data.units.total)}
-        subtext={`${data.units.properties} Gebäude · ${data.units.cities} Städte`}
+        subtext={`${data.units.properties} Gebäude`}
       />
       <StatCard
         label="Auslastung"
-        value={fmtPct(data.occupancy.percent)}
-        valueClass={occColor}
-        subtext={`${data.occupancy.assigned}/${data.occupancy.total} vermietet`}
+        value={`${fmt(data.occupancy.assigned)}/${fmt(data.occupancy.total)} vermietet`}
+        valueClass={cn("text-2xl", occColor)}
+        subtext="Mieter / Einheiten"
       />
       <StatCard
         label="Soll-Miete / Monat"
@@ -83,12 +96,12 @@ export function PortfolioKpiCards() {
         subtext="€ netto kalt"
       />
       <StatCard
-        label={`Eingang ${data.monthLabel}`}
+        label={`Ist-Eingang ${data.monthLabel}`}
         value={fmt(Math.round(data.inflow.received))}
         subtext={
-          <span className={hasOpen ? "text-amber-600" : undefined}>
-            {fmtPct(data.inflow.percent)} —{" "}
-            {fmt(Math.round(data.inflow.open))} € offen
+          <span className={inflowSubColor}>
+            {fmtPct(data.inflow.percent)} von Soll · {fmt(failedCount)}×
+            fehlgeschlagen
           </span>
         }
       />

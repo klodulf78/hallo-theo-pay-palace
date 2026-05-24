@@ -5,6 +5,7 @@ import { getStripe } from "./stripe.server";
 export type ResetResult = {
   stripeDeleted: number;
   stripeError: string | null;
+  propertiesDeleted: number;
 };
 
 const TABLES_IN_ORDER = [
@@ -23,7 +24,7 @@ const TABLES_IN_ORDER = [
 
 export const resetDemo = createServerFn({ method: "POST" }).handler(
   async (): Promise<ResetResult> => {
-    // 1-11. Delete data in FK-safe order
+    // 1. Delete tenant-side data in FK-safe order
     for (const table of TABLES_IN_ORDER) {
       const { error } = await supabaseAdmin
         .from(table)
@@ -34,7 +35,28 @@ export const resetDemo = createServerFn({ method: "POST" }).handler(
       }
     }
 
-    // 13. Reset simulated_now + clear stripe_test_clock_id reference
+    // 2. Delete seeded properties (preserve the original demo property)
+    let propertiesDeleted = 0;
+    const { data: seedProps } = await supabaseAdmin
+      .from("properties")
+      .select("id")
+      .like("name", "Hallo Theo · %")
+      .neq("name", "Hallo Theo · Berlin Mitte Portfolio");
+    const seedIds = (seedProps ?? []).map((p) => p.id);
+    if (seedIds.length > 0) {
+      // Units already cleared above, but ensure any straggler units are gone
+      await supabaseAdmin.from("units").delete().in("property_id", seedIds);
+      const { error: pErr } = await supabaseAdmin
+        .from("properties")
+        .delete()
+        .in("id", seedIds);
+      if (pErr) {
+        throw new Error(`Failed to delete seed properties: ${pErr.message}`);
+      }
+      propertiesDeleted = seedIds.length;
+    }
+
+    // 3. Reset simulated_now + clear stripe_test_clock_id reference
     const { error: grErr } = await supabaseAdmin
       .from("guardrails")
       .update({ simulated_now: "2026-05-01", stripe_test_clock_id: null })
@@ -43,12 +65,11 @@ export const resetDemo = createServerFn({ method: "POST" }).handler(
       throw new Error(`Failed to reset guardrails: ${grErr.message}`);
     }
 
-    // 14. Stripe cleanup — delete all customers in sandbox
+    // 4. Stripe cleanup — delete all customers in sandbox
     let stripeDeleted = 0;
     let stripeError: string | null = null;
     try {
       const stripe = getStripe();
-      // Also delete any test clocks (so we don't hit the 3-clock limit later)
       try {
         for await (const clock of stripe.testHelpers.testClocks.list({
           limit: 100,
@@ -68,7 +89,6 @@ export const resetDemo = createServerFn({ method: "POST" }).handler(
           await stripe.customers.del(customer.id);
           stripeDeleted++;
         } catch (e) {
-          // continue; collect last error
           stripeError = (e as Error).message;
         }
       }
@@ -76,6 +96,6 @@ export const resetDemo = createServerFn({ method: "POST" }).handler(
       stripeError = (e as Error).message;
     }
 
-    return { stripeDeleted, stripeError };
+    return { stripeDeleted, stripeError, propertiesDeleted };
   },
 );

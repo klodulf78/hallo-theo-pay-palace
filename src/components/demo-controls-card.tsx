@@ -1,17 +1,25 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { UserPlus, Calendar, CreditCard, Loader2 } from "lucide-react";
+import {
+  UserPlus,
+  Calendar,
+  CreditCard,
+  Loader2,
+  MapPin,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { addTenant } from "@/lib/add-tenant.functions";
 import { runSepaRun, advanceSimulatedMonth } from "@/lib/validation.functions";
+import { seedDemoPortfolio } from "@/lib/seed-portfolio.functions";
 
-export function DemoControlsCard() {
+export function DemoControlsCard({ includeSeed = false }: { includeSeed?: boolean }) {
   const qc = useQueryClient();
   const addTenantFn = useServerFn(addTenant);
   const sepaFn = useServerFn(runSepaRun);
   const advanceFn = useServerFn(advanceSimulatedMonth);
+  const seedFn = useServerFn(seedDemoPortfolio);
 
   const addM = useMutation({
     mutationFn: () => addTenantFn(),
@@ -60,6 +68,20 @@ export function DemoControlsCard() {
       toast.error("Monat simulieren fehlgeschlagen", { description: e.message }),
   });
 
+  const seedM = useMutation({
+    mutationFn: () => seedFn(),
+    onSuccess: () => {
+      toast.success("Demo-Portfolio neu geseedet (9 Properties)");
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) =>
+      toast.error("Seed fehlgeschlagen", { description: e.message }),
+  });
+
+  const gridCols = includeSeed
+    ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+    : "grid-cols-1 md:grid-cols-3";
+
   return (
     <Card className="p-6 border-border shadow-sm">
       <div className="mb-4">
@@ -68,7 +90,15 @@ export function DemoControlsCard() {
           Manuelles Auslösen der Validierungs-Flows
         </p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className={`grid ${gridCols} gap-3`}>
+        {includeSeed && (
+          <BigButton
+            icon={<MapPin className="h-5 w-5" />}
+            label="Demo-Portfolio seeden"
+            loading={seedM.isPending}
+            onClick={() => seedM.mutate()}
+          />
+        )}
         <BigButton
           icon={<UserPlus className="h-5 w-5" />}
           label="Neuen Mieter aufnehmen"
