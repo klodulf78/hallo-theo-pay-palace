@@ -5,15 +5,13 @@ import {
   AlertTriangle,
   Building2,
   Workflow,
-  Map,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { label: "Portfolio", to: "/portfolio", icon: Map },
-  { label: "Dashboard", to: "/", icon: LayoutDashboard },
+  { label: "Dashboard", to: "/portfolio", icon: LayoutDashboard },
   { label: "Eskalationen", to: "/exceptions", icon: AlertTriangle },
   { label: "Demo-Ablauf", to: "/demo-flow", icon: Workflow },
 ] as const;
