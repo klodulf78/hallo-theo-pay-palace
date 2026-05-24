@@ -119,7 +119,7 @@ export function PortfolioKpiCards() {
           <span className={hasStage3 ? "text-red-600 font-medium" : undefined}>
             {data.dunning.tenants === 0
               ? "Keine offenen Mahnverfahren"
-              : `${data.dunning.mahnung} in Mahnung · ${data.dunning.eskalation} vor Eskalation`}
+              : `${data.dunning.stage1}× Stufe 1 · ${data.dunning.stage2}× Stufe 2 · ${data.dunning.stage3}× Stufe 3`}
           </span>
         }
       />

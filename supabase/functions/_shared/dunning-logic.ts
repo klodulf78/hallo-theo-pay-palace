@@ -276,6 +276,10 @@ export function decideClaimAction(
   return { kind: "noop", reason: stage3Already ? "stage3_already" : "no_trigger" };
 }
 
+function minIsoDate(a: string, b: string): string {
+  return a < b ? a : b;
+}
+
 function buildIssueAction(
   stage: 1 | 2 | 3,
   claim: ClaimInput,
@@ -292,14 +296,44 @@ function buildIssueAction(
   // Stage 3 carries no extra Mahngebühr — it's pre-escalation case-file only.
   if (withChargebackFee) mahngebuehr = round2(mahngebuehr + policy.sepaChargebackFee);
 
-  const { defaultDaysCalendar, interest } = computeDefaultInterest(
-    claim.amount,
-    policy,
-    defaultSinceIso,
-    asOf,
-  );
+  // Historically accurate issued_date — when the stage SHOULD have been
+  // issued legally, not when the dunning engine happened to run.
+  let issuedDate: string;
+  if (stage === 1) {
+    // SEPA chargeback: fires the day of detection (asOf approximates the event).
+    // Normal default: the day the claim first counted as in default.
+    issuedDate =
+      trigger === "sepa_chargeback" ? asOf : minIsoDate(defaultSinceIso, asOf);
+  } else if (stage === 2) {
+    const s1 = claim.existingNotices[1];
+    if (!s1) {
+      // Safety net: should never happen — Stage 2 trigger requires Stage 1.
+      issuedDate = asOf;
+    } else {
+      const s1Deadline = addWorkingDays(
+        new Date(`${s1}T00:00:00Z`),
+        policy.stage1DeadlineWorkingDays,
+      );
+      issuedDate = minIsoDate(toIsoDate(s1Deadline), asOf);
+    }
+  } else {
+    const s2 = claim.existingNotices[2];
+    if (!s2) {
+      issuedDate = asOf;
+    } else {
+      const s2Deadline = addWorkingDays(
+        new Date(`${s2}T00:00:00Z`),
+        policy.stage2DeadlineWorkingDays,
+      );
+      issuedDate = minIsoDate(toIsoDate(s2Deadline), asOf);
+    }
+  }
 
-  const issuedDate = asOf;
+  // Snapshot interest: legal state AT the moment of issuance.
+  const snap = computeDefaultInterest(claim.amount, policy, defaultSinceIso, issuedDate);
+  // Running interest on rent_obligations reflects CURRENT state (as_of).
+  const running = computeDefaultInterest(claim.amount, policy, defaultSinceIso, asOf);
+
   const deadlineWorkingDays =
     stage === 1
       ? policy.stage1DeadlineWorkingDays
@@ -321,9 +355,9 @@ function buildIssueAction(
     basiszinssatz: policy.basiszinssatz,
     default_interest_surcharge: policy.defaultInterestSurcharge,
     default_since: defaultSinceIso,
-    as_of: asOf,
-    default_days_calendar: defaultDaysCalendar,
-    default_interest: interest,
+    as_of: issuedDate,
+    default_days_calendar: snap.defaultDaysCalendar,
+    default_interest: snap.interest,
     mahngebuehr,
     trigger,
   };
@@ -334,16 +368,15 @@ function buildIssueAction(
     issuedDate,
     deadlineDate,
     mahngebuehr,
-    defaultInterestSnapshot: interest,
+    defaultInterestSnapshot: snap.interest,
     verzugsnachweis: snapshot,
     newDunningStage: stage,
     newDefaultSince: defaultSinceIso,
-    // We DON'T double-charge: fees on rent_obligations are the sum of all
-    // notice rows' Mahngebühren. So a fresh stage adds its fee to the running
-    // accrued total. Interest is replaced (not summed) with the most recent
-    // snapshot since it's recomputed from default_since each time.
+    // Fees accumulate (sum of Mahngebühren). Running interest is recomputed
+    // against asOf each time (not summed) so accrued_default_interest on
+    // rent_obligations always reflects the current outstanding interest.
     newAccruedFees: round2(claim.accruedDunningFees + mahngebuehr),
-    newAccruedInterest: interest,
+    newAccruedInterest: running.interest,
     requiresHumanException: stage === 3,
   };
 }
