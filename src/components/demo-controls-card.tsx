@@ -5,7 +5,7 @@ import {
   CalendarClock,
   CreditCard,
   Loader2,
-  BuildingIcon,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
