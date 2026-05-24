@@ -15,6 +15,7 @@ import { Route as ExceptionsRouteImport } from './routes/exceptions'
 import { Route as DemoFlowRouteImport } from './routes/demo-flow'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PortfolioPropertyIdRouteImport } from './routes/portfolio.$propertyId'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
 
 const TenantPortalRoute = TenantPortalRouteImport.update({
@@ -47,6 +48,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortfolioPropertyIdRoute = PortfolioPropertyIdRouteImport.update({
+  id: '/$propertyId',
+  path: '/$propertyId',
+  getParentRoute: () => PortfolioRoute,
+} as any)
 const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   id: '/api/public/stripe-webhook',
   path: '/api/public/stripe-webhook',
@@ -58,8 +64,9 @@ export interface FileRoutesByFullPath {
   '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
-  '/portfolio': typeof PortfolioRoute
+  '/portfolio': typeof PortfolioRouteWithChildren
   '/tenant-portal': typeof TenantPortalRoute
+  '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -67,8 +74,9 @@ export interface FileRoutesByTo {
   '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
-  '/portfolio': typeof PortfolioRoute
+  '/portfolio': typeof PortfolioRouteWithChildren
   '/tenant-portal': typeof TenantPortalRoute
+  '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesById {
@@ -77,8 +85,9 @@ export interface FileRoutesById {
   '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
-  '/portfolio': typeof PortfolioRoute
+  '/portfolio': typeof PortfolioRouteWithChildren
   '/tenant-portal': typeof TenantPortalRoute
+  '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/exceptions'
     | '/portfolio'
     | '/tenant-portal'
+    | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/exceptions'
     | '/portfolio'
     | '/tenant-portal'
+    | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/exceptions'
     | '/portfolio'
     | '/tenant-portal'
+    | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
   fileRoutesById: FileRoutesById
 }
@@ -116,7 +128,7 @@ export interface RootRouteChildren {
   ActivityRoute: typeof ActivityRoute
   DemoFlowRoute: typeof DemoFlowRoute
   ExceptionsRoute: typeof ExceptionsRoute
-  PortfolioRoute: typeof PortfolioRoute
+  PortfolioRoute: typeof PortfolioRouteWithChildren
   TenantPortalRoute: typeof TenantPortalRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
 }
@@ -165,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portfolio/$propertyId': {
+      id: '/portfolio/$propertyId'
+      path: '/$propertyId'
+      fullPath: '/portfolio/$propertyId'
+      preLoaderRoute: typeof PortfolioPropertyIdRouteImport
+      parentRoute: typeof PortfolioRoute
+    }
     '/api/public/stripe-webhook': {
       id: '/api/public/stripe-webhook'
       path: '/api/public/stripe-webhook'
@@ -175,12 +194,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PortfolioRouteChildren {
+  PortfolioPropertyIdRoute: typeof PortfolioPropertyIdRoute
+}
+
+const PortfolioRouteChildren: PortfolioRouteChildren = {
+  PortfolioPropertyIdRoute: PortfolioPropertyIdRoute,
+}
+
+const PortfolioRouteWithChildren = PortfolioRoute._addFileChildren(
+  PortfolioRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
   DemoFlowRoute: DemoFlowRoute,
   ExceptionsRoute: ExceptionsRoute,
-  PortfolioRoute: PortfolioRoute,
+  PortfolioRoute: PortfolioRouteWithChildren,
   TenantPortalRoute: TenantPortalRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { MapContainer, GeoJSON, Marker, Tooltip } from "react-leaflet";
+import { useNavigate } from "@tanstack/react-router";
 import L from "leaflet";
 import { feature } from "topojson-client";
 import type { Topology, GeometryCollection } from "topojson-specification";
@@ -76,6 +77,7 @@ export default function PortfolioMap({
   markers: PropertyMarker[];
 }) {
   const [geo, setGeo] = useState<GeoJSON.FeatureCollection | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +135,13 @@ export default function PortfolioMap({
             key={m.id}
             position={[m.lat, m.lng]}
             icon={buildingPin(COLOR[m.status])}
+            eventHandlers={{
+              click: () =>
+                navigate({
+                  to: "/portfolio/$propertyId",
+                  params: { propertyId: m.id },
+                }),
+            }}
           >
             <Tooltip direction="top" opacity={1}>
               <div style={{ lineHeight: 1.4 }}>
