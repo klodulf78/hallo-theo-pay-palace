@@ -224,9 +224,15 @@ export function decideClaimAction(
 
   // Stage 1 trigger: today >= default_since (or SEPA chargeback)
   if (!stage1Already && (sepaImmediate || today >= defaultSinceDate)) {
-    // For SEPA chargeback: default_since = today (the chargeback day) so
-    // interest doesn't pre-date the actual default event.
-    const defaultSinceIso = sepaImmediate ? toIsoDate(today) : toIsoDate(defaultSinceDate);
+    // For SEPA chargeback: default_since = actual chargeback date (clamped to
+    // asOf) so interest and downstream stages are dated from the legal event,
+    // not from when the engine happened to run.
+    const asOfIso = toIsoDate(today);
+    const chargebackIso =
+      claim.sepaChargebackDate && claim.sepaChargebackDate <= asOfIso
+        ? claim.sepaChargebackDate
+        : asOfIso;
+    const defaultSinceIso = sepaImmediate ? chargebackIso : toIsoDate(defaultSinceDate);
     return buildIssueAction(
       1,
       claim,
