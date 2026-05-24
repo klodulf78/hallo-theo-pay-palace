@@ -1,29 +1,16 @@
-## Ziel
-Alle Sample-/Demo-Daten aus der Datenbank entfernen, ohne Tabellen, Views, Policies oder Constraints anzufassen. Schema bleibt 1:1 bestehen, damit anschließend ein neuer Datensatz eingespielt werden kann.
+## Sortierfunktion für Eskalationen-Seite
 
-## Vorgehen
-Per Insert-Tool ein einziges `TRUNCATE ... RESTART IDENTITY CASCADE` über alle 14 Tabellen ausführen. `TRUNCATE` löscht nur die Rows, nicht die Tabellen selbst. `CASCADE` sorgt dafür, dass Reihenfolge bei FK-Beziehungen egal ist. `RESTART IDENTITY` setzt etwaige Sequenzen zurück.
+Analog zum Webhook-Events-Panel ein Sort-Dropdown im Seiten-Header rechts oben (shadcn `Select`). Sortiert die Mieter-Karten.
 
-Betroffene Tabellen (alle werden geleert):
-- `agent_actions`
-- `communications`
-- `exceptions`
-- `payment_plan_installments`
-- `payment_plans`
-- `payment_events`
-- `rent_obligations`
-- `sepa_mandates`
-- `owner_payouts`
-- `tenants`
-- `units`
-- `properties`
-- `owners`
-- `guardrails`
+**Optionen:**
+- Schwere (kritisch zuerst) — Default
+- Gesamtsaldo (höchster zuerst)
+- Gesamtsaldo (niedrigster zuerst)
+- Höchste Mahnstufe (Stufe 3 zuerst)
+- Mieter (A–Z)
+- Älteste offene Forderung zuerst (nach frühestem `dueDate` der `notices`)
 
-Views (`portfolio_kpis`, `property_kpis`, `unit_kpis`) bleiben unverändert — sie zeigen danach automatisch leere/0-Werte.
+**Optional — Filter-Chips** über der Liste:
+- Alle · Nur Stufe 3 · Nur Stufe 1–2
 
-## Hinweis zu Stripe
-Die Stripe-Test-Clock, Customers und Subscriptions im Stripe-Sandbox-Account werden dadurch **nicht** gelöscht. Die `tenants.stripe_customer_id`-Referenzen verschwinden aber. Beim nächsten „Setup Stripe Demo" werden neue Stripe-Objekte erstellt. Falls du auch im Stripe-Dashboard aufräumen willst, sag Bescheid — das wäre ein separater Schritt.
-
-## Danach
-Du kannst neue Daten direkt per SQL-Insert oder über ein Seed-Skript einpflegen. UI/Dashboard funktionieren unverändert weiter und zeigen einfach leere KPIs an, bis Daten vorhanden sind.
+**Umsetzung:** rein in `src/routes/exceptions.tsx` (clientseitig auf `cases`-Array). Aktueller Server-Default-Sort (severity → saldo) bleibt als Fallback bestehen — die UI-Sortierung überschreibt ihn nur.
