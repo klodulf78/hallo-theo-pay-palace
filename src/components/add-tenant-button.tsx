@@ -12,9 +12,14 @@ export function AddTenantButton() {
   const m = useMutation({
     mutationFn: () => addTenantFn(),
     onSuccess: (data) => {
-      toast.success(`Mieter ${data.tenantName} aufgenommen`, {
-        description: `${data.unitLabel} · Stripe Customer ${data.stripeCustomerId}`,
-      });
+      if (data.skippedReason) {
+        toast.info(data.skippedReason);
+      } else {
+        toast.success(
+          `${data.onboarded} Mieter onboarded — Auslastung jetzt ${data.occupancyPercent.toFixed(0)}%`,
+          { description: `${data.vacantUnits} Einheiten bleiben als Leerstand.` },
+        );
+      }
       qc.invalidateQueries();
     },
     onError: (err: Error) => {
