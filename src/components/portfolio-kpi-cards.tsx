@@ -3,10 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { getPortfolioKpis, type PortfolioKpis } from "@/lib/portfolio-kpis.functions";
-
-const fmt = (n: number) => n.toLocaleString("de-DE");
-const fmtPct = (n: number) =>
-  `${n.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+import { useLang, formatCurrency, formatNumber, formatPercent } from "@/lib/use-language";
 
 function StatCard({
   label,
@@ -38,6 +35,7 @@ function StatCard({
 
 export function PortfolioKpiCards() {
   const fn = useServerFn(getPortfolioKpis);
+  const { lang, t } = useLang();
   const { data } = useQuery<PortfolioKpis>({
     queryKey: ["portfolio-kpis"],
     queryFn: () => fn(),
@@ -54,7 +52,6 @@ export function PortfolioKpiCards() {
     );
   }
 
-  // Occupancy color
   const occPct = data.occupancy.percent;
   const occColor =
     data.occupancy.assigned === 0
@@ -73,7 +70,6 @@ export function PortfolioKpiCards() {
       ? "text-amber-600"
       : "text-muted-foreground";
 
-  // Inflow card colors
   const failedCount = data.inflow.failed;
   const failedPct = data.inflow.failedPercent;
   const inflowSubColor =
@@ -86,40 +82,39 @@ export function PortfolioKpiCards() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
       <StatCard
-        label="Einheiten gesamt"
-        value={fmt(data.units.total)}
-        subtext={`${data.units.properties} Gebäude`}
+        label={t("kpi.unitsTotal")}
+        value={formatNumber(data.units.total, lang)}
+        subtext={`${data.units.properties} ${t("kpi.buildings")}`}
       />
       <StatCard
-        label="Auslastung"
-        value={`${fmt(data.occupancy.assigned)}/${fmt(data.occupancy.total)} vermietet`}
+        label={t("kpi.occupancy")}
+        value={`${formatNumber(data.occupancy.assigned, lang)}/${formatNumber(data.occupancy.total, lang)} ${t("kpi.rented")}`}
         valueClass={cn("text-2xl", occColor)}
-        subtext="Mieter / Einheiten"
+        subtext={t("kpi.tenantsPerUnits")}
       />
       <StatCard
-        label="Soll-Miete / Monat"
-        value={fmt(Math.round(data.monthlyRent))}
-        subtext="€ netto kalt"
+        label={t("kpi.targetRent")}
+        value={formatCurrency(Math.round(data.monthlyRent), lang)}
+        subtext={t("kpi.netCold")}
       />
       <StatCard
-        label={`Ist-Eingang ${data.monthLabel}`}
-        value={fmt(Math.round(data.inflow.received))}
+        label={`${t("kpi.actualIncome")} ${data.monthLabel}`}
+        value={formatCurrency(Math.round(data.inflow.received), lang)}
         subtext={
           <span className={inflowSubColor}>
-            {fmtPct(data.inflow.percent)} von Soll · {fmt(failedCount)}×
-            fehlgeschlagen
+            {formatPercent(data.inflow.percent, lang)} {t("kpi.ofTarget")} · {formatNumber(failedCount, lang)}× {t("kpi.failed")}
           </span>
         }
       />
       <StatCard
-        label="Mieter im Verzug"
-        value={fmt(data.dunning.tenants)}
+        label={t("kpi.tenantsInArrears")}
+        value={formatNumber(data.dunning.tenants, lang)}
         valueClass={dunningValueClass}
         subtext={
           <span className={hasStage3 ? "text-red-600 font-medium" : undefined}>
             {data.dunning.tenants === 0
-              ? "Keine offenen Mahnverfahren"
-              : `${data.dunning.stage1}× Stufe 1 · ${data.dunning.stage2}× Stufe 2 · ${data.dunning.stage3}× Stufe 3`}
+              ? t("kpi.noDunning")
+              : `${data.dunning.stage1}× ${t("kpi.stage")} 1 · ${data.dunning.stage2}× ${t("kpi.stage")} 2 · ${data.dunning.stage3}× ${t("kpi.stage")} 3`}
           </span>
         }
       />

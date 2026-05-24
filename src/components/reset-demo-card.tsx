@@ -15,11 +15,14 @@ import {
 } from "@/components/ui/dialog";
 import { resetDemo } from "@/lib/reset-demo.functions";
 import { seedDemoPortfolio } from "@/lib/seed-portfolio.functions";
+import { useLang } from "@/lib/use-language";
 
 export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
   const [open, setOpen] = useState(false);
   const [seedOpen, setSeedOpen] = useState(false);
   const qc = useQueryClient();
+  const { t, lang } = useLang();
+  const isDe = lang === "de";
   const resetFn = useServerFn(resetDemo);
   const seedFn = useServerFn(seedDemoPortfolio);
 
@@ -29,17 +32,21 @@ export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
       setOpen(false);
       if (d.stripeError) {
         toast.warning(
-          `Demo zurückgesetzt — Daten clean, Stripe-Cleanup fehlgeschlagen: ${d.stripeError}`,
+          isDe
+            ? `Demo zurückgesetzt — Daten clean, Stripe-Cleanup fehlgeschlagen: ${d.stripeError}`
+            : `Demo reset — data clean, Stripe cleanup failed: ${d.stripeError}`,
         );
       } else {
         toast.success(
-          `Demo zurückgesetzt — ${d.stripeDeleted} Stripe-Kunden gelöscht, ${d.propertiesDeleted ?? 0} Properties entfernt.`,
+          isDe
+            ? `Demo zurückgesetzt — ${d.stripeDeleted} Stripe-Kunden gelöscht, ${d.propertiesDeleted ?? 0} Properties entfernt.`
+            : `Demo reset — ${d.stripeDeleted} Stripe customers deleted, ${d.propertiesDeleted ?? 0} properties removed.`,
         );
       }
       qc.invalidateQueries();
     },
     onError: (e: Error) => {
-      toast.error("Reset fehlgeschlagen", { description: e.message });
+      toast.error(isDe ? "Reset fehlgeschlagen" : "Reset failed", { description: e.message });
     },
   });
 
@@ -47,11 +54,11 @@ export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
     mutationFn: () => seedFn(),
     onSuccess: () => {
       setSeedOpen(false);
-      toast.success("Portfolio neu geseedet: 9 Properties.");
+      toast.success(isDe ? "Portfolio neu geseedet: 9 Properties." : "Portfolio re-seeded: 9 properties.");
       qc.invalidateQueries();
     },
     onError: (e: Error) => {
-      toast.error("Seed fehlgeschlagen", { description: e.message });
+      toast.error(isDe ? "Seed fehlgeschlagen" : "Seeding failed", { description: e.message });
     },
   });
 
@@ -63,10 +70,10 @@ export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
             <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
             <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-wider text-red-700 dark:text-red-400">
-                Danger Zone
+                {t("danger.title")}
               </div>
               <div className="text-xs text-muted-foreground truncate">
-                Löscht alle Demo-Daten (Mieter, Zahlungen, Mahnungen, Seed-Properties) für einen sauberen Re-Run.
+                {t("danger.desc")}
               </div>
             </div>
           </div>
@@ -83,7 +90,7 @@ export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
                 ) : (
                   <MapPin className="h-4 w-4" />
                 )}
-                <span className="ml-1">Demo-Portfolio seeden</span>
+                <span className="ml-1">{t("danger.seed")}</span>
               </Button>
             )}
             <Button
@@ -97,7 +104,7 @@ export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
               ) : (
                 <Trash2 className="h-4 w-4" />
               )}
-              <span className="ml-1">Demo zurücksetzen</span>
+              <span className="ml-1">{t("danger.reset")}</span>
             </Button>
           </div>
         </div>
@@ -106,30 +113,20 @@ export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
       <Dialog open={open} onOpenChange={(o) => !m.isPending && setOpen(o)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Demo wirklich zurücksetzen?</DialogTitle>
-            <DialogDescription>
-              Alle Mieter, Mietforderungen, Zahlungen, Mahnungen, Eskalationen und seed-generierten Properties werden gelöscht. Owners, Policy-Einstellungen und das Original-Demo-Property bleiben erhalten.
-            </DialogDescription>
+            <DialogTitle>{t("danger.confirmTitle")}</DialogTitle>
+            <DialogDescription>{t("danger.confirmDesc")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={m.isPending}
-            >
-              Abbrechen
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={m.isPending}>
+              {t("danger.cancel")}
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => m.mutate()}
-              disabled={m.isPending}
-            >
+            <Button variant="destructive" onClick={() => m.mutate()} disabled={m.isPending}>
               {m.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
               ) : (
                 <Trash2 className="h-4 w-4 mr-1" />
               )}
-              Ja, zurücksetzen
+              {t("danger.confirmYes")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -139,18 +136,12 @@ export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
         <Dialog open={seedOpen} onOpenChange={(o) => !seedM.isPending && setSeedOpen(o)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Demo-Portfolio neu seeden?</DialogTitle>
-              <DialogDescription>
-                Bestehende Seed-Properties werden ersetzt durch 9 neue Properties in Berlin, München und Frankfurt.
-              </DialogDescription>
+              <DialogTitle>{t("danger.seedTitle")}</DialogTitle>
+              <DialogDescription>{t("danger.seedDesc")}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setSeedOpen(false)}
-                disabled={seedM.isPending}
-              >
-                Abbrechen
+              <Button variant="outline" onClick={() => setSeedOpen(false)} disabled={seedM.isPending}>
+                {t("danger.cancel")}
               </Button>
               <Button onClick={() => seedM.mutate()} disabled={seedM.isPending}>
                 {seedM.isPending ? (
@@ -158,7 +149,7 @@ export function ResetDemoCard({ simple = false }: { simple?: boolean }) {
                 ) : (
                   <MapPin className="h-4 w-4 mr-1" />
                 )}
-                Ja, neu seeden
+                {t("danger.seedYes")}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -10,19 +10,20 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLang } from "@/lib/use-language";
+import type { Lang } from "@/lib/translations";
 
 const NAV = [
-  { label: "Dashboard", to: "/portfolio", icon: LayoutDashboard },
-  { label: "Eskalationen", to: "/exceptions", icon: AlertTriangle },
-  { label: "Demo-Ablauf", to: "/demo-flow", icon: Workflow },
-  { label: "Pitch", to: "/pitch", icon: Presentation },
+  { key: "dashboard", to: "/portfolio", icon: LayoutDashboard },
+  { key: "exceptions", to: "/exceptions", icon: AlertTriangle },
+  { key: "demoFlow", to: "/demo-flow", icon: Workflow },
+  { key: "pitch", to: "/pitch", icon: Presentation },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = useRouterState({
-    select: (s) => s.location.pathname,
-  });
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [collapsed, setCollapsed] = useState(false);
+  const { t, lang, setLang } = useLang();
 
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground">
@@ -51,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? "Sidebar ausklappen" : "Sidebar einklappen"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             {collapsed ? (
@@ -65,11 +66,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {NAV.map((item) => {
             const active = pathname === item.to;
             const Icon = item.icon;
+            const label = t(`nav.${item.key}`);
             return (
               <Link
                 key={item.to}
                 to={item.to}
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? label : undefined}
                 className={cn(
                   "flex items-center rounded-md py-2 text-sm font-medium transition-colors",
                   collapsed ? "justify-center px-2" : "gap-3 px-3",
@@ -79,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {!collapsed && item.label}
+                {!collapsed && label}
               </Link>
             );
           })}
@@ -106,12 +108,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
+          <LangToggle lang={lang} setLang={setLang} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8">
           {children}
         </main>
       </div>
+    </div>
+  );
+}
+
+function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
+  return (
+    <div className="inline-flex items-center rounded-full border border-border bg-muted/40 p-0.5 text-xs font-semibold">
+      {(["en", "de"] as const).map((l) => (
+        <button
+          key={l}
+          type="button"
+          onClick={() => setLang(l)}
+          aria-pressed={lang === l}
+          className={cn(
+            "px-3 py-1 rounded-full transition-colors",
+            lang === l
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
     </div>
   );
 }

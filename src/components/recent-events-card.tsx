@@ -14,12 +14,11 @@ import {
 import { getRecentWebhookEvents, type WebhookEvent } from "@/lib/events.functions";
 import { useCycle } from "@/lib/cycle-store";
 import { cn } from "@/lib/utils";
+import { useLang, formatCurrency } from "@/lib/use-language";
+import type { Lang } from "@/lib/translations";
 
-const fmtEur = (n: number) =>
-  `€${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString("de-DE", {
+const fmtTime = (iso: string, lang: Lang) =>
+  new Date(iso).toLocaleTimeString(lang === "de" ? "de-DE" : "en-US", {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -29,34 +28,31 @@ function dateKey(iso: string) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-function dateLabel(iso: string) {
+function dateLabel(iso: string, lang: Lang, today: string, yesterday: string) {
   const d = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  if (dateKey(iso) === dateKey(today.toISOString())) return "Heute";
-  if (dateKey(iso) === dateKey(yesterday.toISOString())) return "Gestern";
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "long" });
+  const t = new Date();
+  const y = new Date();
+  y.setDate(t.getDate() - 1);
+  if (dateKey(iso) === dateKey(t.toISOString())) return today;
+  if (dateKey(iso) === dateKey(y.toISOString())) return yesterday;
+  return d.toLocaleDateString(lang === "de" ? "de-DE" : "en-US", { day: "2-digit", month: "long" });
 }
 
 function eventIcon(type: string) {
-  if (type === "payment_succeeded")
-    return <CheckCircle className="h-4 w-4" style={{ color: "#16a34a" }} />;
-  if (type === "payment_failed")
-    return <XCircle className="h-4 w-4" style={{ color: "#dc2626" }} />;
-  if (type === "refund")
-    return <RotateCcw className="h-4 w-4 text-[var(--status-plan)]" />;
+  if (type === "payment_succeeded") return <CheckCircle className="h-4 w-4" style={{ color: "#16a34a" }} />;
+  if (type === "payment_failed") return <XCircle className="h-4 w-4" style={{ color: "#dc2626" }} />;
+  if (type === "refund") return <RotateCcw className="h-4 w-4 text-[var(--status-plan)]" />;
   return <Activity className="h-4 w-4 text-muted-foreground" />;
 }
 
-function eventLabel(type: string) {
+function eventLabel(type: string, t: (k: string) => string) {
   switch (type) {
     case "payment_succeeded":
-      return "Payment succeeded";
+      return t("webhooks.paymentSucceeded");
     case "payment_failed":
-      return "Payment failed";
+      return t("webhooks.paymentFailed");
     case "refund":
-      return "Refund issued";
+      return t("webhooks.refundIssued");
     default:
       return type;
   }
@@ -65,19 +61,13 @@ function eventLabel(type: string) {
 function statusBadge(type: string) {
   if (type === "payment_succeeded")
     return (
-      <Badge
-        className="border-0 text-white"
-        style={{ backgroundColor: "#16a34a" }}
-      >
+      <Badge className="border-0 text-white" style={{ backgroundColor: "#16a34a" }}>
         succeeded
       </Badge>
     );
   if (type === "payment_failed")
     return (
-      <Badge
-        className="border-0 text-white"
-        style={{ backgroundColor: "#dc2626" }}
-      >
+      <Badge className="border-0 text-white" style={{ backgroundColor: "#dc2626" }}>
         failed
       </Badge>
     );
@@ -88,25 +78,12 @@ function statusBadge(type: string) {
   );
 }
 
-type SortKey =
-  | "date_desc"
-  | "date_asc"
-  | "status_failed"
-  | "amount_desc"
-  | "tenant_asc";
-
+type SortKey = "date_desc" | "date_asc" | "status_failed" | "amount_desc" | "tenant_asc";
 type FilterKey = "all" | "success" | "failed";
-
-const SORT_LABELS: Record<SortKey, string> = {
-  date_desc: "Datum (neueste zuerst)",
-  date_asc: "Datum (älteste zuerst)",
-  status_failed: "Status (failed zuerst)",
-  amount_desc: "Betrag (höchster zuerst)",
-  tenant_asc: "Mieter (A–Z)",
-};
 
 export function RecentEventsCard() {
   const cycle = useCycle();
+  const { t, lang } = useLang();
   const [showAll, setShowAll] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("date_desc");
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -119,11 +96,17 @@ export function RecentEventsCard() {
 
   const all = events.data ?? [];
 
+  const SORT_LABELS: Record<SortKey, string> = {
+    date_desc: t("webhooks.sortNewest"),
+    date_asc: t("webhooks.sortOldest"),
+    status_failed: t("webhooks.sortStatus"),
+    amount_desc: t("webhooks.sortAmount"),
+    tenant_asc: t("webhooks.sortTenant"),
+  };
+
   const filtered = useMemo(() => {
-    if (filter === "success")
-      return all.filter((e) => e.type === "payment_succeeded");
-    if (filter === "failed")
-      return all.filter((e) => e.type === "payment_failed");
+    if (filter === "success") return all.filter((e) => e.type === "payment_succeeded");
+    if (filter === "failed") return all.filter((e) => e.type === "payment_failed");
     return all;
   }, [all, filter]);
 
@@ -145,9 +128,7 @@ export function RecentEventsCard() {
         arr.sort((a, b) => b.amount - a.amount);
         break;
       case "tenant_asc":
-        arr.sort((a, b) =>
-          (a.tenantName ?? "").localeCompare(b.tenantName ?? "", "de"),
-        );
+        arr.sort((a, b) => (a.tenantName ?? "").localeCompare(b.tenantName ?? "", lang));
         break;
       case "date_desc":
       default:
@@ -155,11 +136,13 @@ export function RecentEventsCard() {
         break;
     }
     return arr;
-  }, [filtered, sortKey]);
+  }, [filtered, sortKey, lang]);
 
   const visible = showAll ? sorted : sorted.slice(0, 20);
   const hasMore = sorted.length > 20;
   const groupByDate = sortKey === "date_desc" || sortKey === "date_asc";
+  const todayLabel = t("webhooks.today");
+  const yesterdayLabel = t("webhooks.yesterday");
 
   const grouped = useMemo(() => {
     if (!groupByDate)
@@ -175,11 +158,11 @@ export function RecentEventsCard() {
       if (last && last.key === k) {
         last.items.push(e);
       } else {
-        groups.push({ key: k, label: dateLabel(e.occurredAt), items: [e] });
+        groups.push({ key: k, label: dateLabel(e.occurredAt, lang, todayLabel, yesterdayLabel), items: [e] });
       }
     }
     return groups;
-  }, [visible, groupByDate]);
+  }, [visible, groupByDate, lang, todayLabel, yesterdayLabel]);
 
   const successCount = all.filter((e) => e.type === "payment_succeeded").length;
   const failCount = all.filter((e) => e.type === "payment_failed").length;
@@ -192,16 +175,14 @@ export function RecentEventsCard() {
             <Activity className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-base font-semibold">Recent Webhook Events</h2>
+            <h2 className="text-base font-semibold">{t("webhooks.title")}</h2>
             <p className="text-xs text-muted-foreground">
-              Live stream from Stripe · auto-refresh · {all.length} events
+              {t("webhooks.subtitle")} · {all.length} {t("webhooks.events")}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            Sortieren nach:
-          </span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">{t("webhooks.sortBy")}</span>
           <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
             <SelectTrigger className="h-8 w-[220px] text-xs">
               <SelectValue />
@@ -217,23 +198,22 @@ export function RecentEventsCard() {
         </div>
       </div>
 
-      {/* Filter chips */}
       <div className="mt-4 flex items-center gap-2">
         <FilterChip
           active={filter === "all"}
           onClick={() => setFilter("all")}
-          label={`Alle (${all.length})`}
+          label={`${t("webhooks.filterAll")} (${all.length})`}
         />
         <FilterChip
           active={filter === "success"}
           onClick={() => setFilter("success")}
-          label={`Nur Erfolge (${successCount})`}
+          label={`${t("webhooks.filterOk")} (${successCount})`}
           tone="success"
         />
         <FilterChip
           active={filter === "failed"}
           onClick={() => setFilter("failed")}
-          label={`Nur Fehler (${failCount})`}
+          label={`${t("webhooks.filterFail")} (${failCount})`}
           tone="failed"
         />
       </div>
@@ -246,9 +226,7 @@ export function RecentEventsCard() {
             <Skeleton className="h-12 w-full" />
           </div>
         ) : sorted.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            Keine Events für diese Auswahl.
-          </div>
+          <div className="py-8 text-center text-sm text-muted-foreground">{t("webhooks.empty")}</div>
         ) : (
           <div className="space-y-4">
             {grouped.map((g) => (
@@ -280,13 +258,11 @@ export function RecentEventsCard() {
                           <div className="shrink-0">{eventIcon(e.type)}</div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold truncate">
-                                {eventLabel(e.type)}
-                              </span>
+                              <span className="text-sm font-semibold truncate">{eventLabel(e.type, t)}</span>
                               {statusBadge(e.type)}
                             </div>
                             <div className="text-xs text-muted-foreground truncate mt-0.5">
-                              {fmtTime(e.occurredAt)}
+                              {fmtTime(e.occurredAt, lang)}
                               {e.tenantName ? ` · ${e.tenantName}` : ""}
                               {e.failureReason ? ` · ${e.failureReason}` : ""}
                             </div>
@@ -295,14 +271,10 @@ export function RecentEventsCard() {
                         <div
                           className="text-sm font-bold tabular-nums shrink-0"
                           style={{
-                            color: isSuccess
-                              ? "#15803d"
-                              : isFailed
-                                ? "#b91c1c"
-                                : undefined,
+                            color: isSuccess ? "#15803d" : isFailed ? "#b91c1c" : undefined,
                           }}
                         >
-                          {fmtEur(e.amount)}
+                          {formatCurrency(e.amount, lang)}
                         </div>
                       </div>
                     );
@@ -317,7 +289,7 @@ export function RecentEventsCard() {
                   onClick={() => setShowAll(true)}
                   className="text-sm font-medium text-primary hover:underline"
                 >
-                  Alle Events ansehen →
+                  {t("webhooks.viewAll")}
                 </button>
               </div>
             )}

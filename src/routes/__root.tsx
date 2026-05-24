@@ -13,6 +13,7 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import leafletCss from "leaflet/dist/leaflet.css?url";
 import { AppShell } from "@/components/app-shell";
+import { LanguageProvider } from "@/lib/use-language";
 
 function NotFoundComponent() {
   return (
@@ -123,10 +124,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppShell>
-        <Outlet />
-      </AppShell>
-      <Toaster richColors position="top-right" />
+      <LanguageProvider>
+        <AppShell>
+          <Outlet />
+        </AppShell>
+        <Toaster richColors position="top-right" />
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

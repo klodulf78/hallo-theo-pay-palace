@@ -13,13 +13,17 @@ import { Button } from "@/components/ui/button";
 import { addTenant } from "@/lib/add-tenant.functions";
 import { runSepaRun, advanceSimulatedMonth } from "@/lib/validation.functions";
 import { seedDemoPortfolio } from "@/lib/seed-portfolio.functions";
+import { useLang } from "@/lib/use-language";
 
 export function DemoControlsCard({ includeSeed = false }: { includeSeed?: boolean }) {
   const qc = useQueryClient();
+  const { t, lang } = useLang();
   const addTenantFn = useServerFn(addTenant);
   const sepaFn = useServerFn(runSepaRun);
   const advanceFn = useServerFn(advanceSimulatedMonth);
   const seedFn = useServerFn(seedDemoPortfolio);
+
+  const isDe = lang === "de";
 
   const addM = useMutation({
     mutationFn: () => addTenantFn(),
@@ -28,37 +32,47 @@ export function DemoControlsCard({ includeSeed = false }: { includeSeed?: boolea
         toast.info(d.skippedReason);
       } else {
         toast.success(
-          `${d.onboarded} Mieter onboarded — Auslastung jetzt ${d.occupancyPercent.toFixed(0)}%`,
-          { description: `${d.vacantUnits} Einheiten bleiben als Leerstand.` },
+          isDe
+            ? `${d.onboarded} Mieter onboarded — Auslastung jetzt ${d.occupancyPercent.toFixed(0)}%`
+            : `${d.onboarded} tenants onboarded — occupancy now ${d.occupancyPercent.toFixed(0)}%`,
+          {
+            description: isDe
+              ? `${d.vacantUnits} Einheiten bleiben als Leerstand.`
+              : `${d.vacantUnits} units remain vacant.`,
+          },
         );
       }
       qc.invalidateQueries();
     },
     onError: (e: Error) =>
-      toast.error("Anlegen fehlgeschlagen", { description: e.message }),
+      toast.error(isDe ? "Anlegen fehlgeschlagen" : "Creation failed", { description: e.message }),
   });
 
   const sepaM = useMutation({
     mutationFn: () => sepaFn(),
     onSuccess: (d) => {
       toast.success(
-        `SEPA-Lauf: ${d.triggered} Buchungen · ${d.succeeded} ok · ${d.failed} fehlgeschlagen`,
+        isDe
+          ? `SEPA-Lauf: ${d.triggered} Buchungen · ${d.succeeded} ok · ${d.failed} fehlgeschlagen`
+          : `SEPA run: ${d.triggered} charges · ${d.succeeded} ok · ${d.failed} failed`,
         {
           description:
             d.skipped > 0
-              ? `${d.skipped} übersprungen (bereits verbucht)`
+              ? isDe
+                ? `${d.skipped} übersprungen (bereits verbucht)`
+                : `${d.skipped} skipped (already processed)`
               : undefined,
         },
       );
       if (d.errors.length > 0) {
-        toast.error(`${d.errors.length} Fehler im SEPA-Lauf`, {
+        toast.error(isDe ? `${d.errors.length} Fehler im SEPA-Lauf` : `${d.errors.length} errors in SEPA run`, {
           description: d.errors.slice(0, 2).join(" · "),
         });
       }
       qc.invalidateQueries();
     },
     onError: (e: Error) =>
-      toast.error("SEPA-Lauf fehlgeschlagen", { description: e.message }),
+      toast.error(isDe ? "SEPA-Lauf fehlgeschlagen" : "SEPA run failed", { description: e.message }),
   });
 
   const monthM = useMutation({
@@ -70,17 +84,17 @@ export function DemoControlsCard({ includeSeed = false }: { includeSeed?: boolea
       qc.invalidateQueries();
     },
     onError: (e: Error) =>
-      toast.error("Monat simulieren fehlgeschlagen", { description: e.message }),
+      toast.error(isDe ? "Monat simulieren fehlgeschlagen" : "Month simulation failed", { description: e.message }),
   });
 
   const seedM = useMutation({
     mutationFn: () => seedFn(),
     onSuccess: () => {
-      toast.success("Demo-Portfolio neu geseedet (9 Properties)");
+      toast.success(isDe ? "Demo-Portfolio neu geseedet (9 Properties)" : "Demo portfolio re-seeded (9 properties)");
       qc.invalidateQueries();
     },
     onError: (e: Error) =>
-      toast.error("Seed fehlgeschlagen", { description: e.message }),
+      toast.error(isDe ? "Seed fehlgeschlagen" : "Seeding failed", { description: e.message }),
   });
 
   const gridCols = includeSeed
@@ -90,35 +104,33 @@ export function DemoControlsCard({ includeSeed = false }: { includeSeed?: boolea
   return (
     <Card className="p-6 border-border shadow-sm">
       <div className="mb-4">
-        <h2 className="text-base font-semibold">Demo-Controls</h2>
-        <p className="text-xs text-muted-foreground">
-          Manuelles Auslösen der Validierungs-Flows
-        </p>
+        <h2 className="text-base font-semibold">{t("controls.title")}</h2>
+        <p className="text-xs text-muted-foreground">{t("controls.subtitle")}</p>
       </div>
       <div className={`grid ${gridCols} gap-3`}>
         {includeSeed && (
           <BigButton
             icon={<Building2 className="h-5 w-5" />}
-            label="Hausverwaltung onboarden"
+            label={t("controls.onboardMgmt")}
             loading={seedM.isPending}
             onClick={() => seedM.mutate()}
           />
         )}
         <BigButton
           icon={<FileText className="h-5 w-5" />}
-          label="Mietverträge abschließen"
+          label={t("controls.signLeases")}
           loading={addM.isPending}
           onClick={() => addM.mutate()}
         />
         <BigButton
           icon={<CreditCard className="h-5 w-5" />}
-          label="SEPA-Mandate & Einzug"
+          label={t("controls.sepaCollection")}
           loading={sepaM.isPending}
           onClick={() => sepaM.mutate()}
         />
         <BigButton
           icon={<CalendarClock className="h-5 w-5" />}
-          label="Monatsabschluss"
+          label={t("controls.monthEnd")}
           loading={monthM.isPending}
           onClick={() => monthM.mutate()}
         />

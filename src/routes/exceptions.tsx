@@ -46,6 +46,7 @@ import {
 } from "@/lib/mahnung-export";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useLang } from "@/lib/use-language";
 
 type SortKey =
   | "severity"
@@ -56,15 +57,6 @@ type SortKey =
   | "oldest_due";
 
 type FilterKey = "all" | "stage3" | "stage12";
-
-const SORT_LABELS: Record<SortKey, string> = {
-  severity: "Schwere (kritisch zuerst)",
-  saldo_desc: "Gesamtsaldo (höchster zuerst)",
-  saldo_asc: "Gesamtsaldo (niedrigster zuerst)",
-  stage_desc: "Höchste Mahnstufe (3 zuerst)",
-  tenant_asc: "Mieter (A–Z)",
-  oldest_due: "Älteste offene Forderung zuerst",
-};
 
 const SEVERITY_RANK: Record<string, number> = {
   critical: 4,
@@ -135,6 +127,15 @@ const STAGE_LABEL: Record<number, string> = {
 
 // ---------- Page ----------
 function ExceptionsPage() {
+  const { t } = useLang();
+  const SORT_LABELS: Record<SortKey, string> = {
+    severity: t("exceptionsPage.sortSeverity"),
+    saldo_desc: t("exceptionsPage.sortSaldoDesc"),
+    saldo_asc: t("exceptionsPage.sortSaldoAsc"),
+    stage_desc: t("exceptionsPage.sortStageDesc"),
+    tenant_asc: t("exceptionsPage.sortTenant"),
+    oldest_due: t("exceptionsPage.sortOldest"),
+  };
   const listFn = useServerFn(listTenantCases);
   const markFn = useServerFn(markExceptionInProgress);
   const qc = useQueryClient();
@@ -236,15 +237,15 @@ function ExceptionsPage() {
     <div className="max-w-6xl mx-auto space-y-6 print:hidden-app">
       <div className="print:hidden flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Eskalationen</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("exceptionsPage.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Mieter mit offenen Forderungen oder aktiven Mahnstufen
+            {t("exceptionsPage.subtitle")}
           </p>
         </div>
         {cases.length > 0 && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              Sortieren nach:
+              {t("exceptionsPage.sortBy")}
             </span>
             <Select
               value={sortKey}
@@ -268,7 +269,7 @@ function ExceptionsPage() {
       {cases.length === 0 ? (
         <Card className="p-12 border-border shadow-sm text-center">
           <div className="text-sm text-muted-foreground">
-            Keine offenen Eskalationen — Roboter hat alles im Griff 🤖
+            {t("exceptionsPage.empty")}
           </div>
         </Card>
       ) : (
@@ -277,25 +278,25 @@ function ExceptionsPage() {
             <FilterChip
               active={filter === "all"}
               onClick={() => setFilter("all")}
-              label={`Alle (${cases.length})`}
+              label={`${t("exceptionsPage.filterAll")} (${cases.length})`}
             />
             <FilterChip
               active={filter === "stage3"}
               onClick={() => setFilter("stage3")}
-              label={`Nur Stufe 3 (${stage3Count})`}
+              label={`${t("exceptionsPage.filterStage3")} (${stage3Count})`}
               tone="critical"
             />
             <FilterChip
               active={filter === "stage12"}
               onClick={() => setFilter("stage12")}
-              label={`Nur Stufe 1–2 (${stage12Count})`}
+              label={`${t("exceptionsPage.filterStage12")} (${stage12Count})`}
               tone="warning"
             />
           </div>
 
           {sorted.length === 0 ? (
             <Card className="p-8 border-border shadow-sm text-center text-sm text-muted-foreground">
-              Keine Mieter für diese Auswahl.
+              {t("exceptionsPage.emptyFilter")}
             </Card>
           ) : (
             <div className="space-y-4">
@@ -374,6 +375,7 @@ function TenantCaseCard({
   onAction: () => void;
   actionPending: boolean;
 }) {
+  const { t } = useLang();
   const hasStage3 = c.notices.some((n) => n.stage === 3);
 
   const stageGroups = useMemo(() => {
@@ -415,7 +417,11 @@ function TenantCaseCard({
           const derived =
             maxStage >= 3 ? "critical" : maxStage === 2 ? "medium" : maxStage === 1 ? "low" : "low";
           const label =
-            derived === "critical" ? "Critical" : derived === "medium" ? "Medium" : "Low";
+            derived === "critical"
+              ? t("exceptionsPage.severityCritical")
+              : derived === "medium"
+                ? t("exceptionsPage.severityMedium")
+                : t("exceptionsPage.severityLow");
           return (
             <Badge
               variant="outline"
@@ -429,12 +435,12 @@ function TenantCaseCard({
 
       {/* Saldo block */}
       <div className="rounded-lg border border-border bg-muted/40 p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-        <SaldoCell label="Offene Hauptforderung" value={fmtEur(c.hauptforderung)} />
-        <SaldoCell label="Mahngebühren" value={fmtEur(c.mahngebuehren)} />
-        <SaldoCell label="Verzugszinsen" value={fmtEur(c.verzugszinsen)} />
+        <SaldoCell label={t("exceptionsPage.mainClaim")} value={fmtEur(c.hauptforderung)} />
+        <SaldoCell label={t("exceptionsPage.fees")} value={fmtEur(c.mahngebuehren)} />
+        <SaldoCell label={t("exceptionsPage.interest")} value={fmtEur(c.verzugszinsen)} />
         <div className="border-l border-border pl-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">
-            Gesamtsaldo
+            {t("exceptionsPage.total")}
           </div>
           <div className="mt-1 text-2xl font-bold tabular-nums">
             {fmtEur(c.gesamtsaldo)}
@@ -446,7 +452,7 @@ function TenantCaseCard({
       {stageGroups.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs uppercase tracking-wide font-semibold text-muted-foreground">
-            Mahnstufen
+            {t("exceptionsPage.stages")}
           </div>
           <div className="rounded-md border border-border divide-y divide-border">
             {stageGroups.map((g) => (
@@ -458,21 +464,21 @@ function TenantCaseCard({
                   variant="outline"
                   className={cn("font-semibold", stageStyle[g.stage])}
                 >
-                  Stufe {g.stage}
+                  {t("exceptionsPage.stageLabel")} {g.stage}
                 </Badge>
                 <div className="text-sm font-medium min-w-[180px]">
                   {g.notices.length === 1
                     ? fmtMonth(g.notices[0].month)
-                    : `${g.notices.length} Monate: ${g.notices.map((n) => fmtMonth(n.month)).join(", ")}`}
+                    : `${g.notices.length} ${t("exceptionsPage.months")}: ${g.notices.map((n) => fmtMonth(n.month)).join(", ")}`}
                 </div>
                 <div className="text-xs text-muted-foreground tabular-nums">
-                  Zuletzt ausgestellt {fmtDateLong(g.latest.issuedDate)}
+                  {t("exceptionsPage.lastIssued")} {fmtDateLong(g.latest.issuedDate)}
                 </div>
                 <div className="text-xs text-muted-foreground tabular-nums">
-                  Frist {fmtDateLong(g.latest.deadlineDate)}
+                  {t("exceptionsPage.deadline")} {fmtDateLong(g.latest.deadlineDate)}
                 </div>
                 <div className="text-xs tabular-nums">
-                  Gebühren{" "}
+                  {t("exceptionsPage.feesShort")}{" "}
                   <span className="font-medium">{fmtEur(g.sumFee)}</span>
                 </div>
                 <div className="ml-auto flex gap-2">
@@ -482,14 +488,14 @@ function TenantCaseCard({
                     onClick={() => onOpenMahnung(g.stage, g.notices)}
                   >
                     <Mail className="h-3.5 w-3.5 mr-1.5" />
-                    Mahnung herunterladen
+                    {t("exceptionsPage.downloadLetter")}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => onOpenVerzugsnachweis(g.latest)}
                   >
-                    Verzugsnachweis ansehen
+                    {t("exceptionsPage.viewProof")}
                   </Button>
                 </div>
               </div>
@@ -502,31 +508,27 @@ function TenantCaseCard({
       {hasStage3 && c.stage3ExceptionId && (
         <div className="flex items-center gap-2 pt-2 border-t border-border">
           <span className="text-xs uppercase tracking-wide font-semibold text-muted-foreground">
-            Aktionen
+            {t("exceptionsPage.actions")}
           </span>
           <div className="ml-auto flex gap-2">
             <Button
               size="sm"
               variant="secondary"
-              disabled={
-                actionPending || c.stage3ExceptionStatus === "in_progress"
-              }
+              disabled={actionPending || c.stage3ExceptionStatus === "in_progress"}
               onClick={onAction}
             >
-              Kündigung einleiten
+              {t("exceptionsPage.terminate")}
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              disabled={
-                actionPending || c.stage3ExceptionStatus === "in_progress"
-              }
+              disabled={actionPending || c.stage3ExceptionStatus === "in_progress"}
               onClick={onAction}
             >
-              Anwalt einschalten
+              {t("exceptionsPage.engageAttorney")}
             </Button>
             {c.stage3ExceptionStatus === "in_progress" && (
-              <Badge variant="secondary">in Bearbeitung</Badge>
+              <Badge variant="secondary">{t("exceptionsPage.inProgress")}</Badge>
             )}
           </div>
         </div>
@@ -554,6 +556,7 @@ function VerzugsnachweisDialog({
   row: { tenant: TenantCase; notice: DunningNoticeRow } | null;
   onClose: () => void;
 }) {
+  const { t } = useLang();
   const [showRaw, setShowRaw] = useState(false);
   const s = row?.notice.snapshot;
   const tenant = row?.tenant;
@@ -663,7 +666,7 @@ function VerzugsnachweisDialog({
         )}
 
         <DialogFooter className="border-t border-border pt-4">
-          <Button variant="outline" onClick={onClose}>Schließen</Button>
+          <Button variant="outline" onClick={onClose}>{t("exceptionsPage.close")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -719,6 +722,7 @@ function MahnungDialog({
   } | null;
   onClose: () => void;
 }) {
+  const { t } = useLang();
   if (!row) {
     return (
       <Dialog open={false} onOpenChange={(o) => !o && onClose()}>
@@ -916,15 +920,15 @@ function MahnungDialog({
 
         <DialogFooter className="border-t border-border pt-4 print:hidden">
           <Button variant="outline" onClick={onClose}>
-            Schließen
+            {t("exceptionsPage.close")}
           </Button>
           <Button variant="outline" onClick={handleDocx}>
             <FileText className="h-4 w-4 mr-2" />
-            Als Word speichern
+            {t("exceptionsPage.saveWord")}
           </Button>
           <Button onClick={handlePdf}>
             <Download className="h-4 w-4 mr-2" />
-            Als PDF speichern
+            {t("exceptionsPage.savePdf")}
           </Button>
         </DialogFooter>
 
