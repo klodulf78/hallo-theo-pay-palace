@@ -137,6 +137,39 @@ export function ResetDemoCard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={seedOpen} onOpenChange={(o) => !seedM.isPending && setSeedOpen(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Demo zurücksetzen + neu seeden?</DialogTitle>
+            <DialogDescription>
+              Bestehende Demo-Properties (außer der Original-Demo) werden gelöscht
+              und 9 neue Properties in Berlin, München und Frankfurt mit
+              erweiterter Streuung (~30 km Radius) angelegt.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSeedOpen(false)}
+              disabled={seedM.isPending}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={() => seedM.mutate()}
+              disabled={seedM.isPending}
+            >
+              {seedM.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <MapPin className="h-4 w-4 mr-1" />
+              )}
+              Ja, neu seeden
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
