@@ -18,6 +18,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -32,7 +39,34 @@ import {
   type DunningNoticeRow,
   type Verzugsnachweis,
 } from "@/lib/exceptions.functions";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+
+type SortKey =
+  | "severity"
+  | "saldo_desc"
+  | "saldo_asc"
+  | "stage_desc"
+  | "tenant_asc"
+  | "oldest_due";
+
+type FilterKey = "all" | "stage3" | "stage12";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  severity: "Schwere (kritisch zuerst)",
+  saldo_desc: "Gesamtsaldo (höchster zuerst)",
+  saldo_asc: "Gesamtsaldo (niedrigster zuerst)",
+  stage_desc: "Höchste Mahnstufe (3 zuerst)",
+  tenant_asc: "Mieter (A–Z)",
+  oldest_due: "Älteste offene Forderung zuerst",
+};
+
+const SEVERITY_RANK: Record<string, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 
 export const Route = createFileRoute("/exceptions")({
   head: () => ({
