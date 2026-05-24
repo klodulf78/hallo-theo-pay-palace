@@ -304,7 +304,9 @@ async function runSepaForMonth(simulatedNow: string): Promise<SepaRunResult> {
             amount: Number(t.rent_amount),
             source: "simulation",
             stripe_event_id: pi.id,
-            occurred_at: new Date(pi.created * 1000).toISOString(),
+            // Stamp with simulated time so KPI queries (filtered by
+            // simulated_now month) find the event.
+            occurred_at: new Date(`${simulatedNow}T08:00:00Z`).toISOString(),
           });
           await supabaseAdmin
             .from("rent_obligations")
@@ -331,7 +333,7 @@ async function runSepaForMonth(simulatedNow: string): Promise<SepaRunResult> {
           amount: Number(t.rent_amount),
           failure_reason: "insufficient_funds",
           source: "simulation",
-          occurred_at: new Date().toISOString(),
+          occurred_at: new Date(`${simulatedNow}T08:00:00Z`).toISOString(),
         });
         await supabaseAdmin
           .from("rent_obligations")

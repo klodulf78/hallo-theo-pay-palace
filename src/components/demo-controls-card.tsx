@@ -24,9 +24,14 @@ export function DemoControlsCard({ includeSeed = false }: { includeSeed?: boolea
   const addM = useMutation({
     mutationFn: () => addTenantFn(),
     onSuccess: (d) => {
-      toast.success(`Mieter ${d.tenantName} angelegt`, {
-        description: `${d.unitLabel} · Stripe ${d.stripeCustomerId}`,
-      });
+      if (d.skippedReason) {
+        toast.info(d.skippedReason);
+      } else {
+        toast.success(
+          `${d.onboarded} Mieter onboarded — Auslastung jetzt ${d.occupancyPercent.toFixed(0)}%`,
+          { description: `${d.vacantUnits} Einheiten bleiben als Leerstand.` },
+        );
+      }
       qc.invalidateQueries();
     },
     onError: (e: Error) =>

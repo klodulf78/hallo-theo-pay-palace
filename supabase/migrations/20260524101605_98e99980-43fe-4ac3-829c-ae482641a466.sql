@@ -1,0 +1,1 @@
+ALTER TABLE public.units ADD COLUMN target_rent numeric(10,2);
