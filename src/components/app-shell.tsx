@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   AlertTriangle,
   Building2,
-  Workflow,
   Presentation,
   PanelLeftClose,
   PanelLeftOpen,
@@ -16,7 +15,6 @@ import type { Lang } from "@/lib/translations";
 const NAV = [
   { key: "dashboard", to: "/portfolio", icon: LayoutDashboard },
   { key: "exceptions", to: "/exceptions", icon: AlertTriangle },
-  
   { key: "pitch", to: "/pitch", icon: Presentation },
 ] as const;
 
