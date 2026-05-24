@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
+import { Route as PitchRouteImport } from './routes/pitch'
 import { Route as ExceptionsRouteImport } from './routes/exceptions'
 import { Route as DemoFlowRouteImport } from './routes/demo-flow'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,6 +20,11 @@ import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/
 const PortfolioRoute = PortfolioRouteImport.update({
   id: '/portfolio',
   path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PitchRoute = PitchRouteImport.update({
+  id: '/pitch',
+  path: '/pitch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExceptionsRoute = ExceptionsRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
+  '/pitch': typeof PitchRoute
   '/portfolio': typeof PortfolioRouteWithChildren
   '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
+  '/pitch': typeof PitchRoute
   '/portfolio': typeof PortfolioRouteWithChildren
   '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
+  '/pitch': typeof PitchRoute
   '/portfolio': typeof PortfolioRouteWithChildren
   '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/demo-flow'
     | '/exceptions'
+    | '/pitch'
     | '/portfolio'
     | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/demo-flow'
     | '/exceptions'
+    | '/pitch'
     | '/portfolio'
     | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/demo-flow'
     | '/exceptions'
+    | '/pitch'
     | '/portfolio'
     | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DemoFlowRoute: typeof DemoFlowRoute
   ExceptionsRoute: typeof ExceptionsRoute
+  PitchRoute: typeof PitchRoute
   PortfolioRoute: typeof PortfolioRouteWithChildren
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
 }
@@ -114,6 +127,13 @@ declare module '@tanstack/react-router' {
       path: '/portfolio'
       fullPath: '/portfolio'
       preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pitch': {
+      id: '/pitch'
+      path: '/pitch'
+      fullPath: '/pitch'
+      preLoaderRoute: typeof PitchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/exceptions': {
@@ -170,19 +190,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DemoFlowRoute: DemoFlowRoute,
   ExceptionsRoute: ExceptionsRoute,
+  PitchRoute: PitchRoute,
   PortfolioRoute: PortfolioRouteWithChildren,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
