@@ -77,7 +77,7 @@ export function ResetDemoCard() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => seedM.mutate()}
+              onClick={() => setSeedOpen(true)}
               disabled={seedM.isPending || m.isPending}
             >
               {seedM.isPending ? (
