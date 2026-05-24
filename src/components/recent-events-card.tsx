@@ -41,9 +41,9 @@ function dateLabel(iso: string) {
 
 function eventIcon(type: string) {
   if (type === "payment_succeeded")
-    return <CheckCircle className="h-4 w-4 text-green-700" />;
+    return <CheckCircle className="h-4 w-4" style={{ color: "#16a34a" }} />;
   if (type === "payment_failed")
-    return <XCircle className="h-4 w-4 text-red-700" />;
+    return <XCircle className="h-4 w-4" style={{ color: "#dc2626" }} />;
   if (type === "refund")
     return <RotateCcw className="h-4 w-4 text-[var(--status-plan)]" />;
   return <Activity className="h-4 w-4 text-muted-foreground" />;
@@ -65,13 +65,19 @@ function eventLabel(type: string) {
 function statusBadge(type: string) {
   if (type === "payment_succeeded")
     return (
-      <Badge className="bg-green-600 text-white hover:bg-green-600 border-0">
+      <Badge
+        className="border-0 text-white"
+        style={{ backgroundColor: "#16a34a" }}
+      >
         succeeded
       </Badge>
     );
   if (type === "payment_failed")
     return (
-      <Badge className="bg-red-600 text-white hover:bg-red-600 border-0">
+      <Badge
+        className="border-0 text-white"
+        style={{ backgroundColor: "#dc2626" }}
+      >
         failed
       </Badge>
     );
