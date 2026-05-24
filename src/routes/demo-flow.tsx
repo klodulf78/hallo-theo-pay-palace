@@ -105,7 +105,7 @@ const STAGES = [
 
 function DemoFlowPage() {
   return (
-    <AppShell>
+    <>
       <div className="max-w-6xl mx-auto px-8 py-12 space-y-16">
         {/* Header */}
         <header className="text-center space-y-3">
@@ -204,6 +204,6 @@ function DemoFlowPage() {
           </Badge>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }
