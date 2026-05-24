@@ -93,9 +93,7 @@ export function downloadAsPdf(d: MahnungLetterData): void {
     y += lh;
     doc.text(d.propertyStreet, marginX, y);
   }
-  const cityLine = [d.propertyPostalCode, d.propertyCity]
-    .filter(Boolean)
-    .join(" ");
+  const cityLine = [d.propertyPostalCode, d.propertyCity].filter(Boolean).join(" ");
   if (cityLine) {
     y += lh;
     doc.text(cityLine, marginX, y);
@@ -307,9 +305,7 @@ function lineItemTable(d: MahnungLetterData): Table {
           margins: { top: 120, bottom: 40, left: 0, right: 0 },
           children: [
             new Paragraph({
-              children: [
-                new TextRun({ text: d.totalLabel, bold: true, size: 22 }),
-              ],
+              children: [new TextRun({ text: d.totalLabel, bold: true, size: 22 })],
             }),
           ],
         }),
@@ -320,9 +316,7 @@ function lineItemTable(d: MahnungLetterData): Table {
           children: [
             new Paragraph({
               alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({ text: d.totalValue, bold: true, size: 22 }),
-              ],
+              children: [new TextRun({ text: d.totalValue, bold: true, size: 22 })],
             }),
           ],
         }),
