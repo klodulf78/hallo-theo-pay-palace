@@ -189,130 +189,147 @@ async function runDunning(db: any, bodyAsOf?: string): Promise<DunningRunResult>
       continue;
     }
 
-    const input: ClaimInput = {
-      id: c.id,
-      tenantId: c.tenant_id,
-      amount: Number(c.amount),
-      monthlyRent: Number(tenant.rent_amount),
-      dueDate: c.due_date,
-      status: c.status,
-      dunningStage: (c.dunning_stage ?? 0) as 0 | 1 | 2 | 3,
-      defaultSince: c.default_since ?? null,
-      accruedDunningFees: Number(c.accrued_dunning_fees ?? 0),
-      accruedDefaultInterest: Number(c.accrued_default_interest ?? 0),
-      hadSepaChargeback: sepaChargebackClaims.has(c.id),
-      existingNotices:
-        noticesByClaim.get(c.id) ??
-        ({ 1: undefined, 2: undefined, 3: undefined } as Record<1 | 2 | 3, string | undefined>),
-      hasActivePaymentPlan: hasPlan.has(c.id),
-      hasOpenHumanException: hasOpenException.has(c.id),
-    };
+    // Mutable per-claim view that we update between cascade iterations so the
+    // next decideClaimAction() sees the just-issued stage.
+    const notices: Record<1 | 2 | 3, string | undefined> =
+      noticesByClaim.get(c.id) ??
+      ({ 1: undefined, 2: undefined, 3: undefined } as Record<1 | 2 | 3, string | undefined>);
+    let dunningStage = (c.dunning_stage ?? 0) as 0 | 1 | 2 | 3;
+    let defaultSince: string | null = c.default_since ?? null;
+    let accruedFees = Number(c.accrued_dunning_fees ?? 0);
+    let accruedInterest = Number(c.accrued_default_interest ?? 0);
+    let cascadeIssued = 0;
+    let cascadeReset = false;
 
-    const action = decideClaimAction(
-      input,
-      { openArrearsAmount: arrearsByTenant.get(c.tenant_id) ?? 0 },
-      policy,
-      tenant.due_day ?? null,
-      asOf,
-    );
+    // Loop: a single dunning run can promote a claim through multiple stages
+    // when accurate historical dates show enough WT have already elapsed.
+    for (let i = 0; i < 4; i++) {
+      const input: ClaimInput = {
+        id: c.id,
+        tenantId: c.tenant_id,
+        amount: Number(c.amount),
+        monthlyRent: Number(tenant.rent_amount),
+        dueDate: c.due_date,
+        status: c.status,
+        dunningStage,
+        defaultSince,
+        accruedDunningFees: accruedFees,
+        accruedDefaultInterest: accruedInterest,
+        hadSepaChargeback: sepaChargebackClaims.has(c.id),
+        existingNotices: { ...notices },
+        hasActivePaymentPlan: hasPlan.has(c.id),
+        hasOpenHumanException: hasOpenException.has(c.id),
+      };
 
-    if (action.kind === "noop") {
-      result.skipped++;
-      continue;
-    }
+      const action = decideClaimAction(
+        input,
+        { openArrearsAmount: arrearsByTenant.get(c.tenant_id) ?? 0 },
+        policy,
+        tenant.due_day ?? null,
+        asOf,
+      );
 
-    if (action.kind === "reset") {
-      const { error: updErr } = await db
+      if (action.kind === "noop") break;
+
+      if (action.kind === "reset") {
+        const { error: updErr } = await db
+          .from("rent_obligations")
+          .update({
+            dunning_stage: 0,
+            default_since: null,
+            accrued_dunning_fees: 0,
+            accrued_default_interest: 0,
+          })
+          .eq("id", c.id);
+        if (updErr) console.error(`reset failed for ${c.id}: ${updErr.message}`);
+        else cascadeReset = true;
+        break;
+      }
+
+      // kind === "issue_stage"
+      const { error: insErr } = await db.from("dunning_notices").insert({
+        rent_obligation_id: c.id,
+        tenant_id: c.tenant_id,
+        stage: action.stage,
+        issued_date: action.issuedDate,
+        deadline_date: action.deadlineDate,
+        mahngebuehr: action.mahngebuehr,
+        default_interest_snapshot: action.defaultInterestSnapshot,
+        verzugsnachweis: action.verzugsnachweis,
+      });
+      if (insErr) {
+        if (insErr.code !== "23505") {
+          console.error(`dunning_notices insert failed for ${c.id}: ${insErr.message}`);
+        }
+        break;
+      }
+
+      const { error: updClaimErr } = await db
         .from("rent_obligations")
         .update({
-          dunning_stage: 0,
-          default_since: null,
-          accrued_dunning_fees: 0,
-          accrued_default_interest: 0,
+          dunning_stage: action.newDunningStage,
+          default_since: action.newDefaultSince,
+          accrued_dunning_fees: action.newAccruedFees,
+          accrued_default_interest: action.newAccruedInterest,
         })
         .eq("id", c.id);
-      if (updErr) console.error(`reset failed for ${c.id}: ${updErr.message}`);
-      else result.resets++;
-      continue;
-    }
-
-    // kind === "issue_stage"
-    // Insert dunning_notice. UNIQUE(rent_obligation_id, stage) makes this
-    // idempotent — a concurrent or duplicate run silently fails the insert.
-    const { error: insErr } = await db.from("dunning_notices").insert({
-      rent_obligation_id: c.id,
-      tenant_id: c.tenant_id,
-      stage: action.stage,
-      issued_date: action.issuedDate,
-      deadline_date: action.deadlineDate,
-      mahngebuehr: action.mahngebuehr,
-      default_interest_snapshot: action.defaultInterestSnapshot,
-      verzugsnachweis: action.verzugsnachweis,
-    });
-    if (insErr) {
-      // Duplicate-key (idempotent re-run) — skip silently.
-      if (insErr.code !== "23505") {
-        console.error(`dunning_notices insert failed for ${c.id}: ${insErr.message}`);
+      if (updClaimErr) {
+        console.error(`rent_obligations update failed for ${c.id}: ${updClaimErr.message}`);
       }
-      result.skipped++;
-      continue;
-    }
 
-    const { error: updClaimErr } = await db
-      .from("rent_obligations")
-      .update({
-        dunning_stage: action.newDunningStage,
-        default_since: action.newDefaultSince,
-        accrued_dunning_fees: action.newAccruedFees,
-        accrued_default_interest: action.newAccruedInterest,
-      })
-      .eq("id", c.id);
-    if (updClaimErr) {
-      console.error(`rent_obligations update failed for ${c.id}: ${updClaimErr.message}`);
-    }
-
-    // For Stage 3 → also create an exceptions case-file row.
-    let exceptionId: string | null = null;
-    if (action.requiresHumanException) {
-      const { data: exRow, error: exErr } = await db
-        .from("exceptions")
-        .insert({
-          rent_obligation_id: c.id,
-          unit_id: c.unit_id,
-          tenant_id: c.tenant_id,
-          type: "repeated_failure",
-          severity: "critical",
-          risk_breakdown: action.verzugsnachweis,
-          recommended_action: "escalate",
-          status: "open",
-          human_needed: true,
-        })
-        .select("id")
-        .maybeSingle();
-      if (exErr) {
-        console.error(`exception insert failed for ${c.id}: ${exErr.message}`);
-      } else {
-        exceptionId = exRow?.id ?? null;
-        result.exceptions_created++;
+      // Stage 3 → also create an exceptions case-file row.
+      let exceptionId: string | null = null;
+      if (action.requiresHumanException) {
+        const { data: exRow, error: exErr } = await db
+          .from("exceptions")
+          .insert({
+            rent_obligation_id: c.id,
+            unit_id: c.unit_id,
+            tenant_id: c.tenant_id,
+            type: "repeated_failure",
+            severity: "critical",
+            risk_breakdown: action.verzugsnachweis,
+            recommended_action: "escalate",
+            status: "open",
+            human_needed: true,
+          })
+          .select("id")
+          .maybeSingle();
+        if (exErr) {
+          console.error(`exception insert failed for ${c.id}: ${exErr.message}`);
+        } else {
+          exceptionId = exRow?.id ?? null;
+          result.exceptions_created++;
+        }
       }
+
+      const actionType = action.stage === 3 ? "escalate" : "reminder";
+      const { error: actErr } = await db.from("agent_actions").insert({
+        exception_id: exceptionId,
+        unit_id: c.unit_id,
+        tenant_id: c.tenant_id,
+        action_type: actionType,
+        reason: `Mahnstufe ${action.stage} ausgestellt (${action.verzugsnachweis.trigger})`,
+        policy_basis: action.stage === 3 ? "§ 543 / § 569 BGB" : "§ 286, § 288 BGB",
+        result: "success",
+      });
+      if (actErr) console.error(`agent_actions insert failed for ${c.id}: ${actErr.message}`);
+
+      // Update local view so next loop iteration sees this stage as issued.
+      notices[action.stage] = action.issuedDate;
+      dunningStage = action.newDunningStage;
+      defaultSince = action.newDefaultSince;
+      accruedFees = action.newAccruedFees;
+      accruedInterest = action.newAccruedInterest;
+      cascadeIssued++;
+      result.stages_issued++;
+      result.stages_by_stage[String(action.stage)]++;
+
+      if (action.stage === 3) break;
     }
 
-    // Audit row in agent_actions. Reuse existing enum values:
-    //   Stage 1+2 → 'reminder', Stage 3 → 'escalate'.
-    const actionType = action.stage === 3 ? "escalate" : "reminder";
-    const { error: actErr } = await db.from("agent_actions").insert({
-      exception_id: exceptionId,
-      unit_id: c.unit_id,
-      tenant_id: c.tenant_id,
-      action_type: actionType,
-      reason: `Mahnstufe ${action.stage} ausgestellt (${action.verzugsnachweis.trigger})`,
-      policy_basis: action.stage === 3 ? "§ 543 / § 569 BGB" : "§ 286, § 288 BGB",
-      result: "success",
-    });
-    if (actErr) console.error(`agent_actions insert failed for ${c.id}: ${actErr.message}`);
-
-    result.stages_issued++;
-    result.stages_by_stage[String(action.stage)]++;
+    if (cascadeReset) result.resets++;
+    else if (cascadeIssued === 0) result.skipped++;
   }
 
   return result;
