@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getPortfolio } from "@/lib/portfolio.functions";
 import { PortfolioKpiCards } from "@/components/portfolio-kpi-cards";
 import { ResetDemoCard } from "@/components/reset-demo-card";
+import { DemoControlsCard } from "@/components/demo-controls-card";
+
 
 const PortfolioMap = lazy(() => import("@/components/portfolio-map"));
 
@@ -67,7 +69,10 @@ function PortfolioPage() {
         )}
       </div>
 
-      <ResetDemoCard />
+      <DemoControlsCard includeSeed />
+
+      <ResetDemoCard simple />
+
     </div>
   );
 }
