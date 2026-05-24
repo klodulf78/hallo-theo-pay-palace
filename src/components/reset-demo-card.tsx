@@ -18,6 +18,7 @@ import { seedDemoPortfolio } from "@/lib/seed-portfolio.functions";
 
 export function ResetDemoCard() {
   const [open, setOpen] = useState(false);
+  const [seedOpen, setSeedOpen] = useState(false);
   const qc = useQueryClient();
   const resetFn = useServerFn(resetDemo);
   const seedFn = useServerFn(seedDemoPortfolio);
@@ -45,6 +46,7 @@ export function ResetDemoCard() {
   const seedM = useMutation({
     mutationFn: () => seedFn(),
     onSuccess: () => {
+      setSeedOpen(false);
       toast.success(
         "Portfolio neu geseedet: 9 Properties mit erweiterter Streuung — bereit für Mieter-Onboarding.",
       );
@@ -75,7 +77,7 @@ export function ResetDemoCard() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => seedM.mutate()}
+              onClick={() => setSeedOpen(true)}
               disabled={seedM.isPending || m.isPending}
             >
               {seedM.isPending ? (
@@ -131,6 +133,39 @@ export function ResetDemoCard() {
                 <Trash2 className="h-4 w-4 mr-1" />
               )}
               Ja, zurücksetzen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={seedOpen} onOpenChange={(o) => !seedM.isPending && setSeedOpen(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Demo zurücksetzen + neu seeden?</DialogTitle>
+            <DialogDescription>
+              Bestehende Demo-Properties (außer der Original-Demo) werden gelöscht
+              und 9 neue Properties in Berlin, München und Frankfurt mit
+              erweiterter Streuung (~30 km Radius) angelegt.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSeedOpen(false)}
+              disabled={seedM.isPending}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={() => seedM.mutate()}
+              disabled={seedM.isPending}
+            >
+              {seedM.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <MapPin className="h-4 w-4 mr-1" />
+              )}
+              Ja, neu seeden
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -86,7 +86,7 @@ export const seedDemoPortfolio = createServerFn({ method: "POST" }).handler(
       await supabaseAdmin.from("properties").delete().in("id", priorIds);
     }
 
-    const jitter = () => (Math.random() - 0.5) * 0.3; // ±0.15° ≈ ±15km
+    const jitter = () => (Math.random() - 0.5) * 0.6; // ±0.30° ≈ ±30km
     let totalProps = 0;
     let totalUnits = 0;
 
