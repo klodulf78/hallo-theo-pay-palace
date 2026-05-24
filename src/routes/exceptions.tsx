@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -759,22 +759,83 @@ function MahnungDialog({
       ? `${stage}. Mahnung — Mietzahlung ${monthsLabel}`
       : `${stage}. Mahnung — Mietzahlungen ${monthsLabel} (${sortedNotices.length} Monate)`;
 
+  const letterRef = useRef<HTMLDivElement>(null);
+
   const totalDays = sortedNotices.reduce(
     (s, n) => s + (n.snapshot?.default_days_calendar ?? 0),
     0,
   );
 
+  const printLetter = () => {
+    const node = letterRef.current;
+    if (!node) return;
+    const html = node.outerHTML;
+    const win = window.open("", "_blank", "width=900,height=1200");
+    if (!win) return;
+    win.document.open();
+    win.document.write(`<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>Mahnung Stufe ${stage} – ${tenant.tenantName}</title>
+<style>
+  @page { size: A4; margin: 18mm 20mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+  body {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+  .mahnung-letter { padding: 0 !important; background: #fff; color: #000; }
+  /* Strip Tailwind-only classes the cloned node may still carry */
+  .mahnung-letter .text-base { font-size: 11.5pt; font-weight: 700; }
+  .mahnung-letter .text-xs { font-size: 9pt; color: #555; }
+  .mahnung-letter .font-bold, .mahnung-letter .font-semibold { font-weight: 700; }
+  .mahnung-letter .font-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10pt; }
+  .mahnung-letter .text-justify { text-align: justify; }
+  .mahnung-letter .flex { display: flex; }
+  .mahnung-letter .justify-between { justify-content: space-between; }
+  .mahnung-letter .items-start { align-items: flex-start; }
+  .mahnung-letter .gap-4 { gap: 1rem; }
+  .mahnung-letter .border-t { border-top: 1px solid #000; }
+  .mahnung-letter .mt-2 { margin-top: 4pt; }
+  .mahnung-letter .pt-1 { padding-top: 2pt; }
+  .mahnung-letter .mb-1 { margin-bottom: 2pt; }
+  .mahnung-letter .mb-2 { margin-bottom: 4pt; }
+  .mahnung-letter .mb-4 { margin-bottom: 8pt; }
+  .mahnung-letter .mb-6 { margin-bottom: 10pt; }
+  .mahnung-letter .mb-10 { margin-bottom: 14pt; }
+  .mahnung-letter .mb-12 { margin-bottom: 18pt; }
+  .mahnung-letter p { margin: 0 0 8pt 0; }
+  .mahnung-letter .space-y-1 > * + * { margin-top: 2pt; }
+  .mahnung-letter .tabular-nums { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>${html}</body>
+</html>`);
+    win.document.close();
+    // Wait for layout, then print
+    win.onload = () => {
+      win.focus();
+      win.print();
+      // Close after a short delay so the print dialog can grab content
+      setTimeout(() => win.close(), 500);
+    };
+  };
+
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:border-0 print:p-0">
-        <DialogHeader className="border-b border-border pb-4 print:hidden">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="border-b border-border pb-4">
           <DialogTitle className="text-xl">
             Mahnung Stufe {stage} · {tenant.tenantName}
           </DialogTitle>
           <DialogDescription>Vorschau · {monthsLabel}</DialogDescription>
         </DialogHeader>
 
-        <div className="mahnung-letter bg-white text-black p-10 text-[13px] leading-relaxed font-serif">
+        <div ref={letterRef} className="mahnung-letter bg-white text-black p-10 text-[13px] leading-relaxed font-serif">
+
           {/* Briefkopf */}
           <div className="flex justify-between items-start mb-12">
             <div>
@@ -859,15 +920,16 @@ function MahnungDialog({
           <Button variant="outline" onClick={onClose}>
             Schließen
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={printLetter}>
             <Printer className="h-4 w-4 mr-2" />
             Drucken
           </Button>
-          <Button onClick={() => window.print()}>
+          <Button onClick={printLetter}>
             <Download className="h-4 w-4 mr-2" />
             Als PDF speichern
           </Button>
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
