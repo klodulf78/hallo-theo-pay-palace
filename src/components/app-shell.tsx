@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Building2,
   Workflow,
+  Presentation,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -14,6 +15,7 @@ const NAV = [
   { label: "Dashboard", to: "/portfolio", icon: LayoutDashboard },
   { label: "Eskalationen", to: "/exceptions", icon: AlertTriangle },
   { label: "Demo-Ablauf", to: "/demo-flow", icon: Workflow },
+  { label: "Pitch", to: "/pitch", icon: Presentation },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
