@@ -15,7 +15,12 @@ export type PortfolioKpis = {
     failed: number;
     failedPercent: number;
   };
-  dunning: { total: number; stage1: number; stage2: number; stage3: number };
+  dunning: {
+    tenants: number;
+    mahnung: number;
+    eskalation: number;
+    maxStage: number;
+  };
 };
 
 function monthKey(d: string): string {
