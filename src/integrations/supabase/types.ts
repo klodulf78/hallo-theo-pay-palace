@@ -750,6 +750,7 @@ export type Database = {
           id: string
           label: string
           property_id: string
+          target_rent: number | null
         }
         Insert: {
           created_at?: string
@@ -757,6 +758,7 @@ export type Database = {
           id?: string
           label: string
           property_id: string
+          target_rent?: number | null
         }
         Update: {
           created_at?: string
@@ -764,6 +766,7 @@ export type Database = {
           id?: string
           label?: string
           property_id?: string
+          target_rent?: number | null
         }
         Relationships: [
           {
