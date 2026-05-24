@@ -48,14 +48,11 @@ function PortfolioPage() {
         </p>
       </header>
 
-      <div
-        className="rounded-lg overflow-hidden border border-border bg-muted"
-        style={{ minHeight: 600 }}
-      >
+      <div className="rounded-lg overflow-hidden border border-border shadow-sm bg-muted h-[70vh]">
         {mounted && data ? (
           <Suspense
             fallback={
-              <div className="h-[600px] flex items-center justify-center text-sm text-muted-foreground">
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
                 Lade Karte…
               </div>
             }
@@ -63,7 +60,7 @@ function PortfolioPage() {
             <PortfolioMap markers={data.markers} />
           </Suspense>
         ) : (
-          <div className="h-[600px] flex items-center justify-center text-sm text-muted-foreground">
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
             {isLoading ? "Lade Daten…" : "Lade Karte…"}
           </div>
         )}

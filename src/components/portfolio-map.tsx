@@ -5,7 +5,6 @@ import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
 import shadowUrl from "leaflet/dist/images/marker-shadow.png";
 import type { PropertyMarker } from "@/lib/portfolio.functions";
 
-// Standard fix for leaflet's default-marker-icon-not-loading issue
 L.Icon.Default.mergeOptions({
   iconUrl,
   iconRetinaUrl,
@@ -18,6 +17,8 @@ const COLOR: Record<PropertyMarker["status"], string> = {
   green: "#16a34a",
 };
 
+const germanyBounds = L.latLngBounds([47.27, 5.87], [55.06, 15.04]);
+
 export default function PortfolioMap({
   markers,
 }: {
@@ -25,28 +26,29 @@ export default function PortfolioMap({
 }) {
   return (
     <MapContainer
-      center={[51.1657, 10.4515]}
-      zoom={6}
-      style={{ height: "600px", width: "100%" }}
+      bounds={germanyBounds}
+      maxBounds={germanyBounds}
+      maxBoundsViscosity={1.0}
+      minZoom={5}
+      maxZoom={11}
       scrollWheelZoom
+      style={{ height: "100%", width: "100%" }}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
+        subdomains="abcd"
       />
       {markers.map((m) => (
         <CircleMarker
           key={m.id}
           center={[m.lat, m.lng]}
-          radius={11}
+          radius={10}
           pathOptions={{
-            color: COLOR[m.status],
+            color: "#1f2937",
             fillColor: COLOR[m.status],
-            fillOpacity: 0.75,
+            fillOpacity: 0.85,
             weight: 2,
-          }}
-          eventHandlers={{
-            click: () => console.log(m.id),
           }}
         >
           <Tooltip direction="top" offset={[0, -8]} opacity={1}>
