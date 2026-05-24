@@ -48,6 +48,10 @@ export type ClaimInput = {
   accruedDefaultInterest: number;
   // Has any SEPA Rücklastschrift hit this claim (returned debit)?
   hadSepaChargeback: boolean;
+  // ISO date (YYYY-MM-DD) of the earliest SEPA chargeback for this claim, if any.
+  // Used to historically backdate Stage 1 / default_since to the actual default
+  // event rather than the engine's run date.
+  sepaChargebackDate?: string | null;
   // Existing dunning_notices stages already issued for this claim,
   // keyed by stage number → issued_date (ISO YYYY-MM-DD).
   existingNotices: Record<1 | 2 | 3, string | undefined>;
