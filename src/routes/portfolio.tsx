@@ -31,14 +31,6 @@ export const Route = createFileRoute("/portfolio")({
   component: PortfolioPage,
 });
 
-function fmtDemoDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-}
 
 function DemoDateStrip() {
   const fn = useServerFn(getPortfolioKpis);
