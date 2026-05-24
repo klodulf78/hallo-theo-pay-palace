@@ -157,3 +157,32 @@
     color: var(--color-foreground);
   }
 }
+
+/* Print: nur den Mahnungsbrief anzeigen, alles andere ausblenden */
+@media print {
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+  /* Show only the letter and its descendants */
+  .mahnung-letter,
+  .mahnung-letter * {
+    visibility: visible;
+  }
+  .mahnung-letter {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+}
