@@ -46,6 +46,7 @@ import {
 } from "@/lib/mahnung-export";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useLang } from "@/lib/use-language";
 
 type SortKey =
   | "severity"
@@ -56,15 +57,6 @@ type SortKey =
   | "oldest_due";
 
 type FilterKey = "all" | "stage3" | "stage12";
-
-const SORT_LABELS: Record<SortKey, string> = {
-  severity: "Schwere (kritisch zuerst)",
-  saldo_desc: "Gesamtsaldo (höchster zuerst)",
-  saldo_asc: "Gesamtsaldo (niedrigster zuerst)",
-  stage_desc: "Höchste Mahnstufe (3 zuerst)",
-  tenant_asc: "Mieter (A–Z)",
-  oldest_due: "Älteste offene Forderung zuerst",
-};
 
 const SEVERITY_RANK: Record<string, number> = {
   critical: 4,
