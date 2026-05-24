@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShell } from "@/components/app-shell";
+
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -105,7 +105,7 @@ const STAGES = [
 
 function DemoFlowPage() {
   return (
-    <AppShell>
+    <>
       <div className="max-w-6xl mx-auto px-8 py-12 space-y-16">
         {/* Header */}
         <header className="text-center space-y-3">
@@ -204,6 +204,6 @@ function DemoFlowPage() {
           </Badge>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }
