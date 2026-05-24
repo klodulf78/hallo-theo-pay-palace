@@ -4,6 +4,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 export type PropertyMarker = {
   id: string;
   name: string;
+  street: string | null;
+  city: string | null;
   lat: number;
   lng: number;
   unitCount: number;
@@ -24,7 +26,7 @@ export type PortfolioData = {
 export const getPortfolio = createServerFn({ method: "GET" }).handler(
   async (): Promise<PortfolioData> => {
     const [propsRes, unitsRes, tenantsRes, obsRes, excRes] = await Promise.all([
-      supabaseAdmin.from("properties").select("id, name, lat, lng"),
+      supabaseAdmin.from("properties").select("id, name, street, city, lat, lng"),
       supabaseAdmin.from("units").select("id, property_id"),
       supabaseAdmin.from("tenants").select("id, unit_id, rent_amount"),
       supabaseAdmin.from("rent_obligations").select("tenant_id, dunning_stage"),
@@ -56,36 +58,36 @@ export const getPortfolio = createServerFn({ method: "GET" }).handler(
     }
 
     const dunningByProp = new Map<string, number>();
+    const maxStageByProp = new Map<string, number>();
     for (const o of obligations) {
-      if ((o.dunning_stage ?? 0) > 0) {
+      const stage = o.dunning_stage ?? 0;
+      if (stage > 0) {
         const p = tenantToProperty.get(o.tenant_id);
-        if (p) dunningByProp.set(p, (dunningByProp.get(p) ?? 0) + 1);
+        if (p) {
+          dunningByProp.set(p, (dunningByProp.get(p) ?? 0) + 1);
+          maxStageByProp.set(p, Math.max(maxStageByProp.get(p) ?? 0, stage));
+        }
       }
     }
 
-    const criticalProps = new Set<string>();
     let activeExceptions = 0;
     for (const e of exceptions) {
       const isOpen = !e.status || e.status === "open" || e.status === "pending";
       if (isOpen) activeExceptions++;
-      if (isOpen && e.severity === "critical") {
-        const p = tenantToProperty.get(e.tenant_id);
-        if (p) criticalProps.add(p);
-      }
     }
 
     const markers: PropertyMarker[] = properties
       .filter((p) => p.lat != null && p.lng != null)
       .map((p) => {
         const dunningCount = dunningByProp.get(p.id) ?? 0;
-        const status: "red" | "yellow" | "green" = criticalProps.has(p.id)
-          ? "red"
-          : dunningCount > 0
-            ? "yellow"
-            : "green";
+        const maxStage = maxStageByProp.get(p.id) ?? 0;
+        const status: "red" | "yellow" | "green" =
+          maxStage >= 3 ? "red" : maxStage >= 1 ? "yellow" : "green";
         return {
           id: p.id,
           name: p.name,
+          street: p.street ?? null,
+          city: p.city ?? null,
           lat: Number(p.lat),
           lng: Number(p.lng),
           unitCount: unitCountByProp.get(p.id) ?? 0,
