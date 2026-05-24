@@ -556,6 +556,7 @@ function VerzugsnachweisDialog({
   row: { tenant: TenantCase; notice: DunningNoticeRow } | null;
   onClose: () => void;
 }) {
+  const { t } = useLang();
   const [showRaw, setShowRaw] = useState(false);
   const s = row?.notice.snapshot;
   const tenant = row?.tenant;
@@ -665,7 +666,7 @@ function VerzugsnachweisDialog({
         )}
 
         <DialogFooter className="border-t border-border pt-4">
-          <Button variant="outline" onClick={onClose}>{useLang().t("exceptionsPage.close")}</Button>
+          <Button variant="outline" onClick={onClose}>{t("exceptionsPage.close")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
