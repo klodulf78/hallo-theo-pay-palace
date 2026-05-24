@@ -759,7 +759,12 @@ function MahnungDialog({
       ? `${stage}. Mahnung — Mietzahlung ${monthsLabel}`
       : `${stage}. Mahnung — Mietzahlungen ${monthsLabel} (${sortedNotices.length} Monate)`;
 
-  const letterRef = React.useRef<HTMLDivElement>(null);
+  const letterRef = useRef<HTMLDivElement>(null);
+
+  const totalDays = sortedNotices.reduce(
+    (s, n) => s + (n.snapshot?.default_days_calendar ?? 0),
+    0,
+  );
 
   const printLetter = () => {
     const node = letterRef.current;
