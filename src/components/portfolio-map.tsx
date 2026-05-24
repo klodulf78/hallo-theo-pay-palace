@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { MapContainer, GeoJSON, Marker, Tooltip } from "react-leaflet";
+import { useNavigate } from "@tanstack/react-router";
 import L from "leaflet";
 import { feature } from "topojson-client";
 import type { Topology, GeometryCollection } from "topojson-specification";
