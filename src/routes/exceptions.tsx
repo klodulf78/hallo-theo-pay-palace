@@ -139,7 +139,8 @@ function ExceptionsPage() {
   } | null>(null);
   const [mahnungRow, setMahnungRow] = useState<{
     tenant: TenantCase;
-    notice: DunningNoticeRow;
+    stage: 1 | 2 | 3;
+    notices: DunningNoticeRow[];
   } | null>(null);
 
   const q = useQuery({
