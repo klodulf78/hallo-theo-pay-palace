@@ -5,6 +5,7 @@ import { getStripe } from "./stripe.server";
 export type ValidationState = {
   simulatedNow: string | null;
   counts: {
+    properties: number;
     tenants: number;
     rent_obligations: number;
     payment_events: number;
