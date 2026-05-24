@@ -44,9 +44,9 @@ export function ResetDemoCard() {
 
   const seedM = useMutation({
     mutationFn: () => seedFn(),
-    onSuccess: (d) => {
+    onSuccess: () => {
       toast.success(
-        `Portfolio geseedet: ${d.properties} Properties, ${d.units} leere Einheiten — bereit für Mieter-Onboarding.`,
+        "Portfolio neu geseedet: 9 Properties mit erweiterter Streuung — bereit für Mieter-Onboarding.",
       );
       qc.invalidateQueries();
     },
