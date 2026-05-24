@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
   { label: "Demo-Ablauf", to: "/demo-flow", icon: Workflow },
-  { label: "Exceptions", to: "/exceptions", icon: AlertTriangle },
+  { label: "Eskalationen", to: "/exceptions", icon: AlertTriangle },
+  
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
