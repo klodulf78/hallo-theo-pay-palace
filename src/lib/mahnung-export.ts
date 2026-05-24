@@ -412,12 +412,5 @@ export async function downloadAsDocx(d: MahnungLetterData): Promise<void> {
   });
 
   const blob = await Packer.toBlob(doc);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${fileBaseName(d)}.docx`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  triggerDownload(blob, `${fileBaseName(d)}.docx`);
 }
