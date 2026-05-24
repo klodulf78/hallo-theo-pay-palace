@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  UserPlus,
-  Calendar,
+  FileText,
+  CalendarClock,
   CreditCard,
   Loader2,
-  MapPin,
+  BuildingIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
