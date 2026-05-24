@@ -350,9 +350,7 @@ export async function downloadAsDocx(d: MahnungLetterData): Promise<void> {
     para(d.unitLabel, { spacing: 60 }),
   ];
   if (d.propertyStreet) recipientChildren.push(para(d.propertyStreet, { spacing: 60 }));
-  const cityLine = [d.propertyPostalCode, d.propertyCity]
-    .filter(Boolean)
-    .join(" ");
+  const cityLine = [d.propertyPostalCode, d.propertyCity].filter(Boolean).join(" ");
   if (cityLine) recipientChildren.push(para(cityLine, { spacing: 60 }));
 
   const doc = new Document({
@@ -376,9 +374,7 @@ export async function downloadAsDocx(d: MahnungLetterData): Promise<void> {
           spacer(280),
           new Paragraph({
             spacing: { after: 240 },
-            children: [
-              new TextRun({ text: `Betreff: ${d.subject}`, bold: true, size: 22 }),
-            ],
+            children: [new TextRun({ text: `Betreff: ${d.subject}`, bold: true, size: 22 })],
           }),
           para(`Sehr geehrte/r Herr/Frau ${d.lastName},`),
           para(d.introText, { spacing: 240 }),
