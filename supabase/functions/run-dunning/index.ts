@@ -224,6 +224,7 @@ async function runDunning(db: any, bodyAsOf?: string): Promise<DunningRunResult>
         accruedDunningFees: accruedFees,
         accruedDefaultInterest: accruedInterest,
         hadSepaChargeback: sepaChargebackClaims.has(c.id),
+        sepaChargebackDate: sepaChargebackDateByClaim.get(c.id) ?? null,
         existingNotices: { ...notices },
         hasActivePaymentPlan: hasPlan.has(c.id),
         hasOpenHumanException: hasOpenException.has(c.id),
