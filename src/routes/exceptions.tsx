@@ -127,6 +127,15 @@ const STAGE_LABEL: Record<number, string> = {
 
 // ---------- Page ----------
 function ExceptionsPage() {
+  const { t } = useLang();
+  const SORT_LABELS: Record<SortKey, string> = {
+    severity: t("exceptionsPage.sortSeverity"),
+    saldo_desc: t("exceptionsPage.sortSaldoDesc"),
+    saldo_asc: t("exceptionsPage.sortSaldoAsc"),
+    stage_desc: t("exceptionsPage.sortStageDesc"),
+    tenant_asc: t("exceptionsPage.sortTenant"),
+    oldest_due: t("exceptionsPage.sortOldest"),
+  };
   const listFn = useServerFn(listTenantCases);
   const markFn = useServerFn(markExceptionInProgress);
   const qc = useQueryClient();
@@ -228,15 +237,15 @@ function ExceptionsPage() {
     <div className="max-w-6xl mx-auto space-y-6 print:hidden-app">
       <div className="print:hidden flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Eskalationen</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("exceptionsPage.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Mieter mit offenen Forderungen oder aktiven Mahnstufen
+            {t("exceptionsPage.subtitle")}
           </p>
         </div>
         {cases.length > 0 && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              Sortieren nach:
+              {t("exceptionsPage.sortBy")}
             </span>
             <Select
               value={sortKey}
@@ -260,7 +269,7 @@ function ExceptionsPage() {
       {cases.length === 0 ? (
         <Card className="p-12 border-border shadow-sm text-center">
           <div className="text-sm text-muted-foreground">
-            Keine offenen Eskalationen — Roboter hat alles im Griff 🤖
+            {t("exceptionsPage.empty")}
           </div>
         </Card>
       ) : (
@@ -269,25 +278,25 @@ function ExceptionsPage() {
             <FilterChip
               active={filter === "all"}
               onClick={() => setFilter("all")}
-              label={`Alle (${cases.length})`}
+              label={`${t("exceptionsPage.filterAll")} (${cases.length})`}
             />
             <FilterChip
               active={filter === "stage3"}
               onClick={() => setFilter("stage3")}
-              label={`Nur Stufe 3 (${stage3Count})`}
+              label={`${t("exceptionsPage.filterStage3")} (${stage3Count})`}
               tone="critical"
             />
             <FilterChip
               active={filter === "stage12"}
               onClick={() => setFilter("stage12")}
-              label={`Nur Stufe 1–2 (${stage12Count})`}
+              label={`${t("exceptionsPage.filterStage12")} (${stage12Count})`}
               tone="warning"
             />
           </div>
 
           {sorted.length === 0 ? (
             <Card className="p-8 border-border shadow-sm text-center text-sm text-muted-foreground">
-              Keine Mieter für diese Auswahl.
+              {t("exceptionsPage.emptyFilter")}
             </Card>
           ) : (
             <div className="space-y-4">
