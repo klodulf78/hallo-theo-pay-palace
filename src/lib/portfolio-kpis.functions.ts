@@ -136,10 +136,10 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
         failedPercent,
       },
       dunning: {
-        total: (dunningRes.data ?? []).length,
-        stage1: stages[1],
-        stage2: stages[2],
-        stage3: stages[3],
+        tenants: tenantMaxStage.size,
+        mahnung,
+        eskalation,
+        maxStage,
       },
     };
   },
