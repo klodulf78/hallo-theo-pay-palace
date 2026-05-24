@@ -720,7 +720,7 @@ function MahnungDialog({
   const latest = sortedNotices.reduce((acc, n) =>
     n.issuedDate > acc.issuedDate ? n : acc,
   );
-  const oldest = sortedNotices[0];
+  
 
   const sumHaupt = sortedNotices.reduce((s, n) => s + n.amount, 0);
   const sumFees = sortedNotices.reduce((s, n) => s + n.mahngebuehr, 0);
