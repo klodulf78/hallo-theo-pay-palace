@@ -39,6 +39,11 @@ import {
   type DunningNoticeRow,
   type Verzugsnachweis,
 } from "@/lib/exceptions.functions";
+import {
+  downloadAsPdf,
+  downloadAsDocx,
+  type MahnungLetterData,
+} from "@/lib/exceptions.functions";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 
