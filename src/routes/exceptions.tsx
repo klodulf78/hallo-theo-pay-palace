@@ -43,7 +43,7 @@ import {
   downloadAsPdf,
   downloadAsDocx,
   type MahnungLetterData,
-} from "@/lib/exceptions.functions";
+} from "@/lib/mahnung-export";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 
