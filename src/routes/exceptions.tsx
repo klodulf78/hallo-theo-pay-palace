@@ -766,62 +766,49 @@ function MahnungDialog({
     0,
   );
 
-  const printLetter = () => {
-    const node = letterRef.current;
-    if (!node) return;
-    const html = node.outerHTML;
-    const win = window.open("", "_blank", "width=900,height=1200");
-    if (!win) return;
-    win.document.open();
-    win.document.write(`<!doctype html>
-<html lang="de">
-<head>
-<meta charset="utf-8" />
-<title>Mahnung Stufe ${stage} – ${tenant.tenantName}</title>
-<style>
-  @page { size: A4; margin: 18mm 20mm; }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-  body {
-    font-family: ui-serif, Georgia, "Times New Roman", serif;
-    font-size: 10.5pt;
-    line-height: 1.45;
-  }
-  .mahnung-letter { padding: 0 !important; background: #fff; color: #000; }
-  /* Strip Tailwind-only classes the cloned node may still carry */
-  .mahnung-letter .text-base { font-size: 11.5pt; font-weight: 700; }
-  .mahnung-letter .text-xs { font-size: 9pt; color: #555; }
-  .mahnung-letter .font-bold, .mahnung-letter .font-semibold { font-weight: 700; }
-  .mahnung-letter .font-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10pt; }
-  .mahnung-letter .text-justify { text-align: justify; }
-  .mahnung-letter .flex { display: flex; }
-  .mahnung-letter .justify-between { justify-content: space-between; }
-  .mahnung-letter .items-start { align-items: flex-start; }
-  .mahnung-letter .gap-4 { gap: 1rem; }
-  .mahnung-letter .border-t { border-top: 1px solid #000; }
-  .mahnung-letter .mt-2 { margin-top: 4pt; }
-  .mahnung-letter .pt-1 { padding-top: 2pt; }
-  .mahnung-letter .mb-1 { margin-bottom: 2pt; }
-  .mahnung-letter .mb-2 { margin-bottom: 4pt; }
-  .mahnung-letter .mb-4 { margin-bottom: 8pt; }
-  .mahnung-letter .mb-6 { margin-bottom: 10pt; }
-  .mahnung-letter .mb-10 { margin-bottom: 14pt; }
-  .mahnung-letter .mb-12 { margin-bottom: 18pt; }
-  .mahnung-letter p { margin: 0 0 8pt 0; }
-  .mahnung-letter .space-y-1 > * + * { margin-top: 2pt; }
-  .mahnung-letter .tabular-nums { font-variant-numeric: tabular-nums; }
-</style>
-</head>
-<body>${html}</body>
-</html>`);
-    win.document.close();
-    // Wait for layout, then print
-    win.onload = () => {
-      win.focus();
-      win.print();
-      // Close after a short delay so the print dialog can grab content
-      setTimeout(() => win.close(), 500);
-    };
+  const issueDateISO = latest.issuedDate.slice(0, 10);
+  const tenantLastName = lastName(tenant.tenantName);
+
+  const lineItems = [
+    ...sortedNotices.map((n) => ({
+      label: `Hauptforderung (Miete ${fmtMonth(n.month)})`,
+      value: fmtEur(n.amount),
+    })),
+    {
+      label: `Mahngebühr Stufe ${stage}${sortedNotices.length > 1 ? ` (${sortedNotices.length} Monate)` : ""}`,
+      value: fmtEur(sumFees),
+    },
+    {
+      label: `Verzugszinsen (${fmtPct(interestRate)} p.a., ${totalDays} Tage gesamt)`,
+      value: fmtEur(sumInterest),
+    },
+  ];
+
+  const letterData: MahnungLetterData = {
+    lastName: tenantLastName,
+    issueDateISO,
+    issueDateLong: fmtDateLong(latest.issuedDate),
+    deadlineDateLong: fmtDateLong(latest.deadlineDate),
+    companyName: "Hallo Theo",
+    portfolioName: tenant.propertyName ?? "Berlin Mitte Portfolio",
+    tenantName: tenant.tenantName,
+    unitLabel: tenant.unitLabel,
+    propertyStreet: tenant.propertyStreet,
+    propertyPostalCode: tenant.propertyPostalCode,
+    propertyCity: tenant.propertyCity,
+    subject,
+    introText,
+    closingText,
+    lineItems,
+    totalLabel: "Gesamtforderung:",
+    totalValue: fmtEur(total),
+    iban: "DE00 0000 0000 0000 0000 00",
+    bic: "DEMOXXXX",
+  };
+
+  const handlePdf = () => downloadAsPdf(letterData);
+  const handleDocx = () => {
+    void downloadAsDocx(letterData);
   };
 
   return (
