@@ -9,20 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TenantPortalRouteImport } from './routes/tenant-portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as ExceptionsRouteImport } from './routes/exceptions'
 import { Route as DemoFlowRouteImport } from './routes/demo-flow'
-import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortfolioPropertyIdRouteImport } from './routes/portfolio.$propertyId'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
 
-const TenantPortalRoute = TenantPortalRouteImport.update({
-  id: '/tenant-portal',
-  path: '/tenant-portal',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PortfolioRoute = PortfolioRouteImport.update({
   id: '/portfolio',
   path: '/portfolio',
@@ -36,11 +29,6 @@ const ExceptionsRoute = ExceptionsRouteImport.update({
 const DemoFlowRoute = DemoFlowRouteImport.update({
   id: '/demo-flow',
   path: '/demo-flow',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ActivityRoute = ActivityRouteImport.update({
-  id: '/activity',
-  path: '/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -61,32 +49,26 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
   '/portfolio': typeof PortfolioRouteWithChildren
-  '/tenant-portal': typeof TenantPortalRoute
   '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
   '/portfolio': typeof PortfolioRouteWithChildren
-  '/tenant-portal': typeof TenantPortalRoute
   '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/activity': typeof ActivityRoute
   '/demo-flow': typeof DemoFlowRoute
   '/exceptions': typeof ExceptionsRoute
   '/portfolio': typeof PortfolioRouteWithChildren
-  '/tenant-portal': typeof TenantPortalRoute
   '/portfolio/$propertyId': typeof PortfolioPropertyIdRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
@@ -94,54 +76,39 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/activity'
     | '/demo-flow'
     | '/exceptions'
     | '/portfolio'
-    | '/tenant-portal'
     | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/activity'
     | '/demo-flow'
     | '/exceptions'
     | '/portfolio'
-    | '/tenant-portal'
     | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
   id:
     | '__root__'
     | '/'
-    | '/activity'
     | '/demo-flow'
     | '/exceptions'
     | '/portfolio'
-    | '/tenant-portal'
     | '/portfolio/$propertyId'
     | '/api/public/stripe-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ActivityRoute: typeof ActivityRoute
   DemoFlowRoute: typeof DemoFlowRoute
   ExceptionsRoute: typeof ExceptionsRoute
   PortfolioRoute: typeof PortfolioRouteWithChildren
-  TenantPortalRoute: typeof TenantPortalRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/tenant-portal': {
-      id: '/tenant-portal'
-      path: '/tenant-portal'
-      fullPath: '/tenant-portal'
-      preLoaderRoute: typeof TenantPortalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/portfolio': {
       id: '/portfolio'
       path: '/portfolio'
@@ -161,13 +128,6 @@ declare module '@tanstack/react-router' {
       path: '/demo-flow'
       fullPath: '/demo-flow'
       preLoaderRoute: typeof DemoFlowRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/activity': {
-      id: '/activity'
-      path: '/activity'
-      fullPath: '/activity'
-      preLoaderRoute: typeof ActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -208,11 +168,9 @@ const PortfolioRouteWithChildren = PortfolioRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ActivityRoute: ActivityRoute,
   DemoFlowRoute: DemoFlowRoute,
   ExceptionsRoute: ExceptionsRoute,
   PortfolioRoute: PortfolioRouteWithChildren,
-  TenantPortalRoute: TenantPortalRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport

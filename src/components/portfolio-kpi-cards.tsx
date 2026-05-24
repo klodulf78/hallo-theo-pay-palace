@@ -65,7 +65,13 @@ export function PortfolioKpiCards() {
           ? "text-amber-600"
           : "text-red-600";
 
-  const hasStage3 = data.dunning.stage3 > 0;
+  const hasStage3 = data.dunning.maxStage >= 3;
+  const hasAny = data.dunning.tenants > 0;
+  const dunningValueClass = hasStage3
+    ? "text-red-600"
+    : hasAny
+      ? "text-amber-600"
+      : "text-muted-foreground";
 
   // Inflow card colors
   const failedCount = data.inflow.failed;
@@ -106,13 +112,14 @@ export function PortfolioKpiCards() {
         }
       />
       <StatCard
-        label="Offene Posten"
-        value={fmt(data.dunning.total)}
-        valueClass={hasStage3 ? "text-red-600" : undefined}
+        label="Mieter im Verzug"
+        value={fmt(data.dunning.tenants)}
+        valueClass={dunningValueClass}
         subtext={
           <span className={hasStage3 ? "text-red-600 font-medium" : undefined}>
-            {data.dunning.stage1}× Stufe 1 · {data.dunning.stage2}× Stufe 2 ·{" "}
-            {data.dunning.stage3}× Stufe 3
+            {data.dunning.tenants === 0
+              ? "Keine offenen Mahnverfahren"
+              : `${data.dunning.mahnung} in Mahnung · ${data.dunning.eskalation} vor Eskalation`}
           </span>
         }
       />

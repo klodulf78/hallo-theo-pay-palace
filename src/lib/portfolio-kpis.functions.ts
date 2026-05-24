@@ -15,7 +15,12 @@ export type PortfolioKpis = {
     failed: number;
     failedPercent: number;
   };
-  dunning: { total: number; stage1: number; stage2: number; stage3: number };
+  dunning: {
+    tenants: number;
+    mahnung: number;
+    eskalation: number;
+    maxStage: number;
+  };
 };
 
 function monthKey(d: string): string {
@@ -24,13 +29,16 @@ function monthKey(d: string): string {
 
 export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
   async (): Promise<PortfolioKpis> => {
-    const [grRes, propsRes, unitsRes, tenantsRes, dunningRes] =
+    const [grRes, propsRes, unitsRes, tenantsRes, dunningObRes] =
       await Promise.all([
         supabaseAdmin.from("guardrails").select("simulated_now").maybeSingle(),
         supabaseAdmin.from("properties").select("id, city"),
         supabaseAdmin.from("units").select("id, target_rent"),
         supabaseAdmin.from("tenants").select("id, unit_id, rent_amount"),
-        supabaseAdmin.from("dunning_notices").select("stage"),
+        supabaseAdmin
+          .from("rent_obligations")
+          .select("tenant_id, dunning_stage")
+          .gt("dunning_stage", 0),
       ]);
 
     const simulatedNow =
@@ -85,10 +93,20 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
     const open = Math.max(expected - received, 0);
     const percentIn = expected > 0 ? (received / expected) * 100 : 0;
 
-    const stages = { 1: 0, 2: 0, 3: 0 } as Record<number, number>;
-    for (const d of dunningRes.data ?? []) {
-      const s = Number(d.stage);
-      if (stages[s] != null) stages[s]++;
+    // Group active dunning rent_obligations by tenant → highest stage per tenant.
+    const tenantMaxStage = new Map<string, number>();
+    for (const r of dunningObRes.data ?? []) {
+      const s = Number(r.dunning_stage);
+      const cur = tenantMaxStage.get(r.tenant_id) ?? 0;
+      if (s > cur) tenantMaxStage.set(r.tenant_id, s);
+    }
+    let mahnung = 0;
+    let eskalation = 0;
+    let maxStage = 0;
+    for (const s of tenantMaxStage.values()) {
+      if (s >= 3) eskalation++;
+      else if (s >= 1) mahnung++;
+      if (s > maxStage) maxStage = s;
     }
 
     const totalUnits = units.length;
@@ -118,10 +136,10 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
         failedPercent,
       },
       dunning: {
-        total: (dunningRes.data ?? []).length,
-        stage1: stages[1],
-        stage2: stages[2],
-        stage3: stages[3],
+        tenants: tenantMaxStage.size,
+        mahnung,
+        eskalation,
+        maxStage,
       },
     };
   },
