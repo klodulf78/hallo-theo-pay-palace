@@ -5,6 +5,7 @@ import { getValidationState } from "@/lib/validation.functions";
 import { cn } from "@/lib/utils";
 
 const LABELS: Record<string, string> = {
+  properties: "Properties",
   tenants: "Tenants",
   rent_obligations: "Rent Obligations",
   payment_events: "Payment Events",
