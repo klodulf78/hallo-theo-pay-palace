@@ -140,8 +140,9 @@ export const getPortfolioKpis = createServerFn({ method: "GET" }).handler(
       },
       dunning: {
         tenants: tenantMaxStage.size,
-        mahnung,
-        eskalation,
+        stage1,
+        stage2,
+        stage3,
         maxStage,
       },
     };
