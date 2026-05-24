@@ -160,16 +160,24 @@ async function runDunning(db: any, bodyAsOf?: string): Promise<DunningRunResult>
     (openExceptions ?? []).map((e: any) => e.rent_obligation_id),
   );
 
-  // 7) Pre-load SEPA chargeback events per claim.
+  // 7) Pre-load SEPA chargeback events per claim (earliest occurrence wins,
+  //    so Stage 1 / default_since can be backdated to the real chargeback day).
   const { data: chargebacks } = await db
     .from("payment_events")
-    .select("rent_obligation_id")
+    .select("rent_obligation_id, occurred_at")
     .eq("type", "failed")
     .in("failure_reason", ["chargeback_dispute", "insufficient_funds", "invalid_mandate"])
     .in("rent_obligation_id", claimIds.length > 0 ? claimIds : ["__none__"]);
-  const sepaChargebackClaims = new Set<string>(
-    (chargebacks ?? []).map((e: any) => e.rent_obligation_id),
-  );
+  const sepaChargebackClaims = new Set<string>();
+  const sepaChargebackDateByClaim = new Map<string, string>();
+  for (const e of chargebacks ?? []) {
+    if (!e.rent_obligation_id) continue;
+    sepaChargebackClaims.add(e.rent_obligation_id);
+    const iso = String(e.occurred_at ?? "").slice(0, 10);
+    if (!iso) continue;
+    const prev = sepaChargebackDateByClaim.get(e.rent_obligation_id);
+    if (!prev || iso < prev) sepaChargebackDateByClaim.set(e.rent_obligation_id, iso);
+  }
 
   // 8) Iterate.
   const result: DunningRunResult = {
