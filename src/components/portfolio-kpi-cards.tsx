@@ -65,7 +65,13 @@ export function PortfolioKpiCards() {
           ? "text-amber-600"
           : "text-red-600";
 
-  const hasStage3 = data.dunning.stage3 > 0;
+  const hasStage3 = data.dunning.maxStage >= 3;
+  const hasAny = data.dunning.tenants > 0;
+  const dunningValueClass = hasStage3
+    ? "text-red-600"
+    : hasAny
+      ? "text-amber-600"
+      : "text-muted-foreground";
 
   // Inflow card colors
   const failedCount = data.inflow.failed;
