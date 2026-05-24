@@ -17,8 +17,9 @@ export type PortfolioKpis = {
   };
   dunning: {
     tenants: number;
-    mahnung: number;
-    eskalation: number;
+    stage1: number;
+    stage2: number;
+    stage3: number;
     maxStage: number;
   };
 };
