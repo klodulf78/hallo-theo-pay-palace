@@ -197,9 +197,12 @@
     margin: 0 !important;
     display: block !important;
   }
-  /* Single-page letter */
+  /* Brief absolut oben links pinnen — überschreibt Radix-Zentrierung */
   .mahnung-letter {
-    position: static !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
     background: white !important;
@@ -212,6 +215,7 @@
     page-break-inside: avoid;
     break-inside: avoid;
   }
+
   .mahnung-letter p { margin: 0 0 5pt 0 !important; }
   .mahnung-letter .text-base { font-size: 10.5pt !important; }
   .mahnung-letter .text-xs   { font-size: 8.5pt  !important; }
