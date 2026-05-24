@@ -164,25 +164,50 @@
     size: A4;
     margin: 20mm;
   }
+  html,
   body {
     background: white !important;
     color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   /* Hide everything by default */
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
   /* Show only the letter and its descendants */
   .mahnung-letter,
   .mahnung-letter * {
-    visibility: visible;
+    visibility: visible !important;
+  }
+  /* Neutralize Radix dialog positioning so the letter prints from top-left */
+  [data-slot="dialog-overlay"],
+  [data-radix-dialog-overlay],
+  [data-slot="dialog-content"],
+  [data-radix-dialog-content] {
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
   .mahnung-letter {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    position: static !important;
+    width: 100% !important;
+    background: white !important;
+    color: black !important;
     padding: 0 !important;
+    margin: 0 !important;
     box-shadow: none !important;
+    page-break-inside: avoid;
   }
 }
+
