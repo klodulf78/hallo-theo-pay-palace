@@ -18,10 +18,21 @@ const GERMAN_NAMES = [
   "Sarah Neumann",
   "David Schwarz",
   "Julia Zimmermann",
+  "Niklas Braun",
+  "Emma Krüger",
+  "Leon Hartmann",
+  "Mia Lange",
+  "Finn Schmitt",
+  "Clara Werner",
+  "Ben Krause",
+  "Lina Albrecht",
+  "Noah Vogel",
 ];
 
 const IBAN_RELIABLE = "DE89370400440532013000";
 const IBAN_CRITICAL = "DE62370400440532013001";
+
+const TARGET_OCCUPANCY = 0.9;
 
 function slugifyName(name: string): string {
   return name
@@ -31,178 +42,169 @@ function slugifyName(name: string): string {
     .replace(/ü/g, "ue")
     .replace(/ß/g, "ss")
     .replace(/[^a-z0-9]+/g, ".")
-    .replace(/^\\.|\\.$/g, "");
+    .replace(/^\.|\.$/g, "");
 }
 
+function pickBehavior(): "reliable" | "soft_fail" | "critical" {
+  const r = Math.random();
+  if (r < 0.85) return "reliable";
+  if (r < 0.95) return "soft_fail";
+  return "critical";
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+export type AddTenantResult = {
+  onboarded: number;
+  occupiedUnits: number;
+  totalUnits: number;
+  occupancyPercent: number;
+  vacantUnits: number;
+  tenantNames: string[];
+  errors: string[];
+  skippedReason?: string;
+};
+
 export const addTenant = createServerFn({ method: "POST" }).handler(
-  async (): Promise<{
-    tenantId: string;
-    tenantName: string;
-    unitLabel: string;
-    stripeCustomerId: string;
-  }> => {
+  async (): Promise<AddTenantResult> => {
     const stripe = getStripe();
 
-    // 1. Find or create owner
-    let { data: owner } = await supabaseAdmin
-      .from("owners")
-      .select("id")
-      .eq("name", "Hallo Theo Demo Owner")
-      .maybeSingle();
-    if (!owner) {
-      const { data, error } = await supabaseAdmin
-        .from("owners")
-        .insert({ name: "Hallo Theo Demo Owner", management_fee_rate: 0.05 })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      owner = data;
+    // 1. Get all units + tenant occupancy.
+    const { data: allUnits, error: uErr } = await supabaseAdmin
+      .from("units")
+      .select("id, label, target_rent");
+    if (uErr) throw new Error(uErr.message);
+    const totalUnits = (allUnits ?? []).length;
+
+    if (totalUnits === 0) {
+      return {
+        onboarded: 0,
+        occupiedUnits: 0,
+        totalUnits: 0,
+        occupancyPercent: 0,
+        vacantUnits: 0,
+        tenantNames: [],
+        errors: [],
+        skippedReason: "Keine Einheiten vorhanden — bitte zuerst Demo-Portfolio seeden.",
+      };
     }
 
-    // 2. Find or create property
-    let { data: property } = await supabaseAdmin
-      .from("properties")
-      .select("id")
-      .eq("name", "Berlin Mitte Portfolio")
-      .maybeSingle();
-    if (!property) {
-      const { data, error } = await supabaseAdmin
-        .from("properties")
+    const { data: tenants, error: tErr } = await supabaseAdmin
+      .from("tenants")
+      .select("id, unit_id");
+    if (tErr) throw new Error(tErr.message);
+
+    const occupiedIds = new Set(
+      (tenants ?? []).map((t) => t.unit_id).filter(Boolean),
+    );
+    const emptyUnits = (allUnits ?? []).filter((u) => !occupiedIds.has(u.id));
+    const occupiedCount = totalUnits - emptyUnits.length;
+    const currentPct = (occupiedCount / totalUnits) * 100;
+
+    const targetOccupied = Math.ceil(totalUnits * TARGET_OCCUPANCY);
+    const toFill = Math.max(0, targetOccupied - occupiedCount);
+
+    if (toFill === 0 || emptyUnits.length === 0) {
+      return {
+        onboarded: 0,
+        occupiedUnits: occupiedCount,
+        totalUnits,
+        occupancyPercent: currentPct,
+        vacantUnits: emptyUnits.length,
+        tenantNames: [],
+        errors: [],
+        skippedReason: `Portfolio bereits zu ${currentPct.toFixed(0)}% belegt — kein Onboarding nötig.`,
+      };
+    }
+
+    const picks = shuffle(emptyUnits).slice(0, toFill);
+    const tenantCountStart = (tenants ?? []).length;
+
+    const created: string[] = [];
+    const errors: string[] = [];
+
+    for (let i = 0; i < picks.length; i++) {
+      const unit = picks[i];
+      const idx = tenantCountStart + i;
+      const name = GERMAN_NAMES[idx % GERMAN_NAMES.length];
+      const slug = slugifyName(name);
+      const email = `${slug}.${idx}@demo.halloflow.local`;
+      const behavior = pickBehavior();
+      const rent = Number(unit.target_rent ?? 1000);
+
+      const { data: tenant, error: insErr } = await supabaseAdmin
+        .from("tenants")
         .insert({
-          name: "Berlin Mitte Portfolio",
-          owner_id: owner.id,
-          city: "Berlin",
-          street: "Unter den Linden 1",
-          postal_code: "10117",
+          name,
+          email,
+          unit_id: unit.id,
+          rent_amount: rent,
+          due_day: 1,
+          behavior_profile: behavior,
         })
         .select("id")
         .single();
-      if (error) throw new Error(error.message);
-      property = data;
-    }
+      if (insErr) {
+        errors.push(`${name}: ${insErr.message}`);
+        continue;
+      }
 
-    // 3. Determine next unit label (within this property)
-    const { data: existingUnits } = await supabaseAdmin
-      .from("units")
-      .select("label")
-      .eq("property_id", property.id);
-    let maxNum = 0;
-    for (const u of existingUnits ?? []) {
-      const m = /^WE-(\d+)$/.exec(u.label);
-      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-    }
-    const nextNum = maxNum + 1;
-    const unitLabel = `WE-${String(nextNum).padStart(3, "0")}`;
+      const iban = behavior === "critical" ? IBAN_CRITICAL : IBAN_RELIABLE;
+      try {
+        const customer = await stripe.customers.create({
+          name,
+          email,
+          metadata: { tenant_id: tenant.id },
+        });
+        const pm = await stripe.paymentMethods.create({
+          type: "sepa_debit",
+          sepa_debit: { iban },
+          billing_details: { name, email },
+        });
+        await stripe.paymentMethods.attach(pm.id, { customer: customer.id });
+        await stripe.customers.update(customer.id, {
+          invoice_settings: { default_payment_method: pm.id },
+        });
 
-    const { data: unit, error: unitErr } = await supabaseAdmin
-      .from("units")
-      .insert({ property_id: property.id, label: unitLabel })
-      .select("id")
-      .single();
-    if (unitErr) throw new Error(unitErr.message);
+        await supabaseAdmin
+          .from("tenants")
+          .update({ stripe_customer_id: customer.id })
+          .eq("id", tenant.id);
 
-    // 4. Determine behavior + tenant identity. Use total tenant count to cycle.
-    const { count: tenantCount } = await supabaseAdmin
-      .from("tenants")
-      .select("id", { count: "exact", head: true });
-    const cycle = ["reliable", "reliable", "reliable", "critical"] as const;
-    const behavior = cycle[(tenantCount ?? 0) % cycle.length];
-
-    const name = GERMAN_NAMES[(tenantCount ?? 0) % GERMAN_NAMES.length];
-    const slug = slugifyName(name);
-    // Add suffix to keep email unique
-    const email = `${slug}.${nextNum}@demo.halloflow.local`;
-    const rent = Math.round((800 + Math.random() * 400) / 10) * 10;
-
-    const { data: tenant, error: tErr } = await supabaseAdmin
-      .from("tenants")
-      .insert({
-        name,
-        email,
-        unit_id: unit.id,
-        rent_amount: rent,
-        due_day: 1,
-        behavior_profile: behavior,
-      })
-      .select("id")
-      .single();
-    if (tErr) {
-      // rollback unit
-      await supabaseAdmin.from("units").delete().eq("id", unit.id);
-      throw new Error(tErr.message);
-    }
-
-    // 5. Stripe customer + SEPA payment method.
-    // NOTE: We intentionally do NOT attach to the test clock here. The test
-    // clock has a 3-customer limit and is only used for subscription-driven
-    // demos. New tenants use the manual SEPA-Lauf flow.
-    const iban = behavior === "critical" ? IBAN_CRITICAL : IBAN_RELIABLE;
-
-    const rollbackDb = async () => {
-      await supabaseAdmin.from("sepa_mandates").delete().eq("tenant_id", tenant.id);
-      await supabaseAdmin.from("tenants").delete().eq("id", tenant.id);
-      await supabaseAdmin.from("units").delete().eq("id", unit.id);
-    };
-
-    let customerId: string;
-    let pmId: string;
-    try {
-      const customer = await stripe.customers.create({
-        name,
-        email,
-        metadata: { tenant_id: tenant.id },
-      });
-      customerId = customer.id;
-
-      const pm = await stripe.paymentMethods.create({
-        type: "sepa_debit",
-        sepa_debit: { iban },
-        billing_details: { name, email },
-      });
-      pmId = pm.id;
-      await stripe.paymentMethods.attach(pm.id, { customer: customer.id });
-      await stripe.customers.update(customer.id, {
-        invoice_settings: { default_payment_method: pm.id },
-      });
-    } catch (e) {
-      await rollbackDb();
-      throw new Error(`Stripe setup failed: ${(e as Error).message}`);
-    }
-
-    // 6. Persist Stripe IDs. If this fails, roll back Stripe + DB.
-    try {
-      const { error: updErr } = await supabaseAdmin
-        .from("tenants")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", tenant.id);
-      if (updErr) throw new Error(updErr.message);
-
-      const { error: mandateErr } = await supabaseAdmin
-        .from("sepa_mandates")
-        .insert({
+        await supabaseAdmin.from("sepa_mandates").insert({
           tenant_id: tenant.id,
           iban,
-          stripe_mandate_id: pmId,
-          mandate_reference: `MANDATE-${unitLabel}`,
+          stripe_mandate_id: pm.id,
+          mandate_reference: `MANDATE-${unit.label}`,
           signed_date: new Date().toISOString().slice(0, 10),
           status: "active",
         });
-      if (mandateErr) throw new Error(mandateErr.message);
-    } catch (e) {
-      try {
-        await stripe.customers.del(customerId);
-      } catch {
-        /* ignore */
+        created.push(name);
+      } catch (e) {
+        await supabaseAdmin.from("tenants").delete().eq("id", tenant.id);
+        errors.push(`${name}: ${(e as Error).message}`);
       }
-      await rollbackDb();
-      throw new Error(`DB persistence failed: ${(e as Error).message}`);
     }
 
+    const newOccupied = occupiedCount + created.length;
+    const newPct = (newOccupied / totalUnits) * 100;
+    const newVacant = totalUnits - newOccupied;
+
     return {
-      tenantId: tenant.id,
-      tenantName: name,
-      unitLabel,
-      stripeCustomerId: customerId,
+      onboarded: created.length,
+      occupiedUnits: newOccupied,
+      totalUnits,
+      occupancyPercent: newPct,
+      vacantUnits: newVacant,
+      tenantNames: created,
+      errors,
     };
   },
 );
