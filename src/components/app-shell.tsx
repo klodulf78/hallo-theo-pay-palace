@@ -16,7 +16,7 @@ import type { Lang } from "@/lib/translations";
 const NAV = [
   { key: "dashboard", to: "/portfolio", icon: LayoutDashboard },
   { key: "exceptions", to: "/exceptions", icon: AlertTriangle },
-  { key: "demoFlow", to: "/demo-flow", icon: Workflow },
+  
   { key: "pitch", to: "/pitch", icon: Presentation },
 ] as const;
 
